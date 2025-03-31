@@ -8,4 +8,9 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="SharpSDL" Version="2.1.0" />
+    <PackageReference Include="UnicornEngine.Unicorn" Version="2.1.3" />
+  </ItemGroup>
+
 </Project>
