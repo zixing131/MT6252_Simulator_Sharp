@@ -1,9 +1,11 @@
-﻿using System.Drawing;
+﻿using System.Collections;
+using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
+using System.Xml;
 using UnicornEngine;
 using UnicornEngine.Const;
 
@@ -323,18 +325,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         const int size_4mb = 1024 * 1024 * 4;
         const int size_1mb = 1024 * 1024;
         const int size_2kb = 1024 * 2;
-
-        const int UC_PROT_NONE = 0;
-        const int UC_PROT_READ = 1;
-        const int UC_PROT_WRITE = 2;
-        const int UC_PROT_EXEC = 4;
-        const int UC_PROT_ALL = 7;
-
-        const int UC_ARCH_ARM = 1;
-        const int UC_MODE_ARM = 0;
-
          
-
         static IntPtr ROM_MEMPOOL;
 
         static IntPtr RAM_MEMPOOL;
@@ -374,15 +365,31 @@ namespace MT6252_Simulator_Sharp.Simalator
             cacheData = new uint[64]
         };
 
-        //static IntPtr ArrToPtr(byte[] array)
-        //{
-        //    return System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(array, 0); 
-        //}
+        static IntPtr ArrToPtr(byte[] array)
+        {
+            // 固定托管内存（避免 GC 移动）
+            GCHandle handle = GCHandle.Alloc(array, GCHandleType.Pinned);
+           // try
+            //{
+                IntPtr ptr = handle.AddrOfPinnedObject();
+                // 现在 ptr 可以安全传递到非托管代码
+                // NativeMethod(ptr, byteArray.Length);
+                return ptr;
+            //}
+            //finally
+            //{
+            //    // 必须手动释放 GCHandle
+            //    if (handle.IsAllocated)
+            //        handle.Free();
+            //}
+
+            // return System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(array, 0);
+        }
 
         public static IntPtr malloc(int size)
         {
-            return IntPtr.Zero;
-//            return ArrToPtr(new byte[size]);
+            //        return IntPtr.Zero;
+            return ArrToPtr(new byte[size]);
         }
 
         //初始MTK引擎
@@ -390,8 +397,8 @@ namespace MT6252_Simulator_Sharp.Simalator
 
         public static void uc_mem_map_ptr(Unicorn mtk, long address, int size, int perms, IntPtr ptr)
         {
-            mtk.MemMap(address, size, perms);
-            //mtk.MemMapPtr(address, size, perms, ptr);
+            // mtk.MemMap(address, size, perms);
+             mtk.MemMapPtr(address, size, perms, ptr);
         }
 
         public static VM_SIM_DEV vm_sim1_dev = new VM_SIM_DEV(true);
@@ -407,47 +414,47 @@ namespace MT6252_Simulator_Sharp.Simalator
         /// </summary>
         public static void initMtkSimalator()
         {
-            MTK = new Unicorn(UC_ARCH_ARM, UC_MODE_ARM);
+            MTK = new Unicorn(UnicornEngine.Const.Common.UC_ARCH_ARM , UnicornEngine.Const.Common.UC_MODE_ARM);
             ROM_MEMPOOL = malloc(size_16mb);
             RAM_MEMPOOL = malloc(size_8mb);
             // 映射寄存器
-            uc_mem_map_ptr(MTK, 0x80000000, size_8mb, UC_PROT_ALL, malloc(size_8mb));
+            uc_mem_map_ptr(MTK, 0x80000000, size_8mb,Common. UC_PROT_ALL, malloc(size_8mb));
 
             // GPIO_BASE_ADDRESS
-            uc_mem_map_ptr(MTK, 0x81000000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
-            uc_mem_map_ptr(MTK, TMDA_BASE, size_4mb, UC_PROT_ALL, malloc(size_4mb));
-            uc_mem_map_ptr(MTK, 0x83000000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
-            uc_mem_map_ptr(MTK, 0x84000000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
-            uc_mem_map_ptr(MTK, 0x85000000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
+            uc_mem_map_ptr(MTK, 0x81000000, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
+            uc_mem_map_ptr(MTK, TMDA_BASE, size_4mb, Common.UC_PROT_ALL, malloc(size_4mb));
+            uc_mem_map_ptr(MTK, 0x83000000, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
+            uc_mem_map_ptr(MTK, 0x84000000, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
+            uc_mem_map_ptr(MTK, 0x85000000, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
 
 
             // 未知 分区
-            uc_mem_map_ptr(MTK, 0x70000000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
-            uc_mem_map_ptr(MTK, 0x78000000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
-            uc_mem_map_ptr(MTK, 0x90000000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
-            uc_mem_map_ptr(MTK, 0xA0000000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
-            uc_mem_map_ptr(MTK, 0xA1000000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
+            uc_mem_map_ptr(MTK, 0x70000000, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
+            uc_mem_map_ptr(MTK, 0x78000000, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
+            uc_mem_map_ptr(MTK, 0x90000000, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
+            uc_mem_map_ptr(MTK, 0xA0000000, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
+            uc_mem_map_ptr(MTK, 0xA1000000, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
 
-            uc_mem_map_ptr(MTK, 0xA2000000, size_4mb, UC_PROT_ALL, malloc(size_4mb));
-            uc_mem_map_ptr(MTK, 0xA3000000, size_4mb, UC_PROT_ALL, malloc(size_4mb));
+            uc_mem_map_ptr(MTK, 0xA2000000, size_4mb, Common.UC_PROT_ALL, malloc(size_4mb));
+            uc_mem_map_ptr(MTK, 0xA3000000, size_4mb, Common.UC_PROT_ALL, malloc(size_4mb));
 
 
             // err = uc_mem_map_ptr(MTK, 0xE5900000, size_4mb, UC_PROT_ALL, malloc(size_4mb));
             RAMF0_POOL = malloc(size_8mb);
-            uc_mem_map_ptr(MTK, 0xF0000000, size_8mb, UC_PROT_ALL, RAMF0_POOL);
-            uc_mem_map_ptr(MTK, 0x01FFF000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
+            uc_mem_map_ptr(MTK, 0xF0000000, size_8mb, Common.UC_PROT_ALL, RAMF0_POOL);
+            uc_mem_map_ptr(MTK, 0x01FFF000, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
             // 映射ROM
-            uc_mem_map_ptr(MTK, 0x08000000, size_16mb, UC_PROT_ALL, ROM_MEMPOOL);
+            uc_mem_map_ptr(MTK, 0x08000000, size_16mb, Common.UC_PROT_ALL, ROM_MEMPOOL);
             // 中断栈
-            uc_mem_map_ptr(MTK, CPU_ISR_CB_ADDRESS, size_1mb, UC_PROT_ALL, malloc(size_1mb));
+            uc_mem_map_ptr(MTK, CPU_ISR_CB_ADDRESS, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
 
 
             // 映射RAM
-            uc_mem_map_ptr(MTK, 0, size_8mb, UC_PROT_ALL, RAM_MEMPOOL);
+            uc_mem_map_ptr(MTK, 0, size_8mb, Common.UC_PROT_ALL, RAM_MEMPOOL);
 
             // 映射外部INIT_SRAM
             RAM40_POOL = malloc(size_8mb);
-            uc_mem_map_ptr(MTK, 0x40000000, size_8mb, UC_PROT_ALL, RAM40_POOL);
+            uc_mem_map_ptr(MTK, 0x40000000, size_8mb, Common.UC_PROT_ALL, RAM40_POOL);
             // hook kal_fatal_error_handler
             // err = uc_hook_add(uc, &trace, UC_HOOK_CODE, hookCodeCallBack, 0, 0, 0xFFFFFFFF);
             // 中断
@@ -489,19 +496,20 @@ namespace MT6252_Simulator_Sharp.Simalator
 
         private static void hookRamCallBack(Unicorn uc, int type, long address, int size, long value, object userData)
         {
-            int data = (int)userData;
+            //Console.WriteLine($"hookRamCallBack address = ({address:X})");
+            int data = (int)userData;  
 
             // Merge images: smaller layer numbers are lower layers, larger are upper layers
             switch (address)
             {
                 case SIM1_CARD_TYPE_REG:
                     changeTmp1 = 0x20;
-                    uc.MemWrite(address, BitConverter.GetBytes(changeTmp1));
+                    uc.MemWrite(address, Uint2Bytes(changeTmp1).Take(1).ToArray());
                     Console.WriteLine($"read sim1_card_type({lastAddress:x})");
                     break;
                 case SIM2_CARD_TYPE_REG:
                     changeTmp1 = 0x20;
-                    uc.MemWrite(address, BitConverter.GetBytes(changeTmp1));
+                    uc.MemWrite(address, Uint2Bytes(changeTmp1).Take(1).ToArray());
                     Console.WriteLine($"read sim2_card_type({lastAddress:x})");
                     break;
                 case SIM1_TIDE:
@@ -536,15 +544,15 @@ namespace MT6252_Simulator_Sharp.Simalator
                     break;
                 case 0x82050000: // Write 1 becomes 0
                     changeTmp = 0;
-                    uc.MemWrite(address, BitConverter.GetBytes(changeTmp));
+                    uc.MemWrite(address, Uint2Bytes(changeTmp));
                     break;
                 case 0xa0000000:
                     changeTmp = 0x5555;
-                    uc.MemWrite(address, BitConverter.GetBytes(changeTmp));
+                    uc.MemWrite(address, Uint2Bytes(changeTmp));
                     break;
                 case 0xA10003F6:
                     changeTmp = 0x8888;
-                    uc.MemWrite(address, BitConverter.GetBytes(changeTmp));
+                    uc.MemWrite(address, Uint2Bytes(changeTmp));
                     break;
                 case 0x9000000c: // LCD Interface Frame Transfer Register
                     if (value == 0 && data == 1)
@@ -580,7 +588,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                     if (data == 1)
                     {
                         vm_dma_msdc_config.Control = (uint)value;
-                        vm_dma_msdc_config.Chanel = (DMA_MASTER_CHANEL)(byte)((value >> 20) & 0b11111);
+                        vm_dma_msdc_config.Chanel = (DMA_MASTER_CHANEL)(byte)((value >> 20) & 31);
                         vm_dma_msdc_config.Direction = (DMA_DATA_DIRECTION)(byte)((value >> 18) & 1);
                         vm_dma_msdc_config.Align = (DMA_DATA_BYTE_ALIGN)(byte)(value & 0b11);
                         vm_dma_msdc_config.TransferEndInterruptEnable = (byte)((value >> 15) & 1);
@@ -590,7 +598,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                     if (data == 1)
                     {
                         vm_dma_sim1_config.Control = (uint)value;
-                        vm_dma_sim1_config.Chanel = (DMA_MASTER_CHANEL)(byte)((value >> 20) & 0b11111);
+                        vm_dma_sim1_config.Chanel = (DMA_MASTER_CHANEL)(byte)((value >> 20) & 31);
                         vm_dma_sim1_config.Direction = (DMA_DATA_DIRECTION)(byte)((value >> 18) & 1);
                         vm_dma_sim1_config.Align = (DMA_DATA_BYTE_ALIGN)(byte)(value & 0b11);
                         vm_dma_sim1_config.TransferEndInterruptEnable = (byte)((value >> 15) & 1);
@@ -600,7 +608,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                     if (data == 1)
                     {
                         vm_dma_sim2_config.Control = (uint)value;
-                        vm_dma_sim2_config.Chanel = (DMA_MASTER_CHANEL)(byte)((value >> 20) & 0b11111);
+                        vm_dma_sim2_config.Chanel = (DMA_MASTER_CHANEL)(byte)((value >> 20) & 31);
                         vm_dma_sim2_config.Direction = (DMA_DATA_DIRECTION)(byte)((value >> 18) & 1);
                         vm_dma_sim2_config.Align = (DMA_DATA_BYTE_ALIGN)(byte)(value & 0b11);
                         vm_dma_sim2_config.TransferEndInterruptEnable = (byte)((value >> 15) & 1);
@@ -662,43 +670,52 @@ namespace MT6252_Simulator_Sharp.Simalator
                     }
                     break;
                 case DMA_SIM1_START_REG:
-                    if (data == 1 && value == 0x8000)
+                    if (data == 1)
                     {
-                        if (vm_dma_sim1_config.Chanel == 0)
+                        if (value == 0x8000)
                         {
-                            vm_dma_sim1_config.ConfigFinish = 1;
-                            Console.WriteLine($"SIM卡1的DMA开启({irq_nested_count})");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"unhandle sim1 dma chanel[{vm_dma_sim1_config.Chanel:x}]");
+                            // 写入0x8000表示DMA开始运行
+                            if (vm_dma_sim1_config.Chanel == 0)
+                            {
+                                vm_dma_sim1_config.ConfigFinish = 1;
+                                Console.WriteLine($"SIM卡1的DMA开启({irq_nested_count})");
+                            }
+                            else
+                            {
+                                Console.WriteLine($"unhandle sim1 dma chanel[{vm_dma_sim1_config.Chanel:x}]");
+                            }
                         }
                     }
                     break;
                 case DMA_SIM2_START_REG:
-                    if (data == 1 && value == 0x8000)
+                    // 写入0x8000表示DMA开始运行
+                    if (data == 1 )
                     {
-                        if (vm_dma_sim2_config.Chanel == (DMA_MASTER_CHANEL)0x13)
+                        if (value == 0x8000)
                         {
-                            Console.WriteLine("SIM卡2的DMA开启");
-                            vm_dma_sim2_config.ConfigFinish = 1;
+                            if (vm_dma_sim2_config.Chanel == (DMA_MASTER_CHANEL)0x13)
+                            {
+                                Console.WriteLine("SIM卡2的DMA开启");
+                                vm_dma_sim2_config.ConfigFinish = 1;
+                            }
+                            else
+                            {
+                                Console.WriteLine($"unhandle sim2 dma chanel[{vm_dma_sim2_config.Chanel:x}]");
+                            }
                         }
-                        else
-                        {
-                            Console.WriteLine($"unhandle sim2 dma chanel[{vm_dma_sim2_config.Chanel:x}]");
-                        }
+                     
                     }
                     break;
                 case 0x810C0090: // Read register, return 0x10
                     if (data == 0)
                     {
                         changeTmp = 0x10;
-                        uc.MemWrite(address, BitConverter.GetBytes(changeTmp));
+                        uc.MemWrite(address, Uint2Bytes(changeTmp));
                     }
                     break;
                 case SD_CMD_STAT_REG: // Read SD command status register
                     changeTmp = 1;
-                    uc.MemWrite(address, BitConverter.GetBytes(changeTmp));
+                    uc.MemWrite(address, Uint2Bytes(changeTmp));
                     break;
                 case SD_DATA_RESP_REG0:
                     switch (MSDC_CMD_CACHE)
@@ -709,35 +726,35 @@ namespace MT6252_Simulator_Sharp.Simalator
                             break;
                         case SDC_CMD_CMD2:
                             changeTmp1 = 0xF016C1C4;
-                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD7:
                             break;
                         case SDC_CMD_CMD8:
                             changeTmp1 = 0x1aa;
-                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD9:
                             changeTmp1 = 0x0000e004;
-                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD55:
                             changeTmp1 = 0x20;
-                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD41_SD:
                             changeTmp1 = 0x80FF8000;
-                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD3_SD:
                             changeTmp1 = 0x3001;
-                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD12:
                             break;
                         case SDC_CMD_CMD13:
                             changeTmp1 = 0x100;
-                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD16:
                             break;
@@ -752,7 +769,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                                 }
                                 vm_dma_msdc_config.ConfigFinish = 0;
                                 changeTmp = 0x8000;
-                                uc.MemWrite(SDC_DATSTA_REG, BitConverter.GetBytes(changeTmp));
+                                uc.MemWrite(SDC_DATSTA_REG, Uint2Bytes(changeTmp));
                                 if (vm_dma_msdc_config.TransferEndInterruptEnable == 1)
                                 {
                                     vm_dma_msdc_config.TransferEndInterruptEnable = 0;
@@ -769,7 +786,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                                 uc.MemRead(vm_dma_msdc_config.DataAddr, buffer);
                                 writeSDFile(buffer, MSDC_DATA_ADDR, vm_dma_msdc_config.TransferCount);
                                 changeTmp = 0x8000;
-                                uc.MemWrite(SDC_DATSTA_REG, BitConverter.GetBytes(changeTmp));
+                                uc.MemWrite(SDC_DATSTA_REG, Uint2Bytes(changeTmp));
                                 if (vm_dma_msdc_config.TransferEndInterruptEnable == 1)
                                 {
                                     vm_dma_msdc_config.TransferEndInterruptEnable = 0;
@@ -788,11 +805,11 @@ namespace MT6252_Simulator_Sharp.Simalator
                     {
                         case SDC_CMD_CMD2:
                             changeTmp1 = 0x77;
-                            uc.MemWrite(SD_DATA_RESP_REG1, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG1, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD9:
                             changeTmp1 = 0x000ff577;
-                            uc.MemWrite(SD_DATA_RESP_REG1, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG1, Uint2Bytes(changeTmp1));
                             break;
                     }
                     break;
@@ -801,11 +818,11 @@ namespace MT6252_Simulator_Sharp.Simalator
                     {
                         case SDC_CMD_CMD2:
                             changeTmp1 = 0;
-                            uc.MemWrite(SD_DATA_RESP_REG2, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG2, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD9:
                             changeTmp1 = 0x00090ff7;
-                            uc.MemWrite(SD_DATA_RESP_REG2, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG2, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD17:
                             break;
@@ -816,15 +833,15 @@ namespace MT6252_Simulator_Sharp.Simalator
                     {
                         case SDC_CMD_CMD2:
                             changeTmp1 = 0x3;
-                            uc.MemWrite(SD_DATA_RESP_REG3, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG3, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD9:
                             changeTmp1 = 0x000004a0;
-                            uc.MemWrite(SD_DATA_RESP_REG3, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG3, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_ACMD51:
                             changeTmp1 = 0;
-                            uc.MemWrite(SD_DATA_RESP_REG3, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_DATA_RESP_REG3, Uint2Bytes(changeTmp1));
                             break;
                     }
                     break;
@@ -833,7 +850,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                     {
                         case SDC_CMD_CMD2:
                             changeTmp1 = 0xF016C1C4;
-                            uc.MemWrite(SD_CMD_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_CMD_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD7:
                             break;
@@ -856,7 +873,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                     {
                         case SDC_CMD_CMD2:
                             changeTmp1 = 0x77;
-                            uc.MemWrite(SD_CMD_RESP_REG1, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_CMD_RESP_REG1, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD13:
                             break;
@@ -872,7 +889,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                             break;
                         default:
                             changeTmp = 0;
-                            uc.MemWrite(SD_CMD_RESP_REG1, BitConverter.GetBytes(changeTmp));
+                            uc.MemWrite(SD_CMD_RESP_REG1, Uint2Bytes(changeTmp));
                             break;
                     }
                     break;
@@ -881,7 +898,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                     {
                         case SDC_CMD_CMD2:
                             changeTmp1 = 0;
-                            uc.MemWrite(SD_CMD_RESP_REG2, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_CMD_RESP_REG2, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD3_SD:
                             break;
@@ -916,7 +933,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                     {
                         case SDC_CMD_CMD2:
                             changeTmp1 = 0x3;
-                            uc.MemWrite(SD_CMD_RESP_REG3, BitConverter.GetBytes(changeTmp1));
+                            uc.MemWrite(SD_CMD_RESP_REG3, Uint2Bytes(changeTmp1));
                             break;
                         case 0x8b3:
                             break;
@@ -1001,7 +1018,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                                     changeTmp = SF_C_Frame.SR_REG[0];
                                     changeTmp |= (uint)(SF_C_Frame.SR_REG[1] << 8);
                                     changeTmp |= (uint)(SF_C_Frame.SR_REG[2] << 16);
-                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG, BitConverter.GetBytes(changeTmp));
+                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG, Uint2Bytes(changeTmp));
                                     break;
                                 case 0x1:
                                     changeTmp = SF_C_Frame.cacheData[0];
@@ -1016,11 +1033,11 @@ namespace MT6252_Simulator_Sharp.Simalator
                                     break;
                                 case 0x9f:
                                     changeTmp = 1;
-                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG, BitConverter.GetBytes(changeTmp));
+                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG, Uint2Bytes(changeTmp));
                                     changeTmp = 2;
-                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG + 4, BitConverter.GetBytes(changeTmp));
+                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG + 4, Uint2Bytes(changeTmp));
                                     changeTmp = 3;
-                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG + 8, BitConverter.GetBytes(changeTmp));
+                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG + 8, Uint2Bytes(changeTmp));
                                     break;
                                 case 0xc0:
                                     break;
@@ -1028,7 +1045,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                             SF_C_Frame.cmdRev = 0;
                             SF_C_Frame.cmd = 0;
                             changeTmp = 2;
-                            uc.MemWrite(RW_SFI_MAC_CTL, BitConverter.GetBytes(changeTmp));
+                            uc.MemWrite(RW_SFI_MAC_CTL, Uint2Bytes(changeTmp));
                         }
                     }
                     break;
@@ -1350,7 +1367,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             long lastSIM_DMA_ADDR = 0;
 
             //Console.WriteLine($"address = ({address:X})");
-            
+            bool isdef = false;
             switch (address)
             {
                 case 0x8370220: // 直接返回开机流程任务全部完成
@@ -1360,25 +1377,25 @@ namespace MT6252_Simulator_Sharp.Simalator
 
                 case 0x81b38d0:
                     changeTmp1 = uc.RegRead(Arm.UC_ARM_REG_R1);
-                    Console.WriteLine($"l1audio_sethandler({changeTmp1:X})");
+                    Console.WriteLine($"l1audio_sethandler({changeTmp1:x})");
                     break;
 
                 case 0x8087256:
                     changeTmp1 = uc.RegRead(Arm.UC_ARM_REG_R0);
-                    Console.WriteLine($"sim_check_status v26({changeTmp1:X})");
+                    Console.WriteLine($"sim_check_status v26({changeTmp1:x})");
                     break;
 
                 case 0x80D2EE0:
                     changeTmp1 = uc.RegRead(Arm.UC_ARM_REG_R2);
                     lastSIM_DMA_ADDR = changeTmp1;
-                    Console.WriteLine($"SIM_CMD(r0,r1,rx_result:{changeTmp1:X})");
+                    Console.WriteLine($"SIM_CMD(r0,r1,rx_result:{changeTmp1:x})");
                     break;
 
                 case 0x819f5b4:
                     changeTmp1 = uc.RegRead(Arm.UC_ARM_REG_R0);
                     uc.MemRead(changeTmp1, globalSprintfBuff);
                     byte[] buftemp = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
-                    Console.WriteLine($"kal_debug_print({System.Text.Encoding.UTF8.GetString(buftemp)})({lastAddress:X})");
+                    Console.WriteLine($"kal_debug_print({System.Text.Encoding.UTF8.GetString(buftemp)})({lastAddress:x})");
                     break;
 
                 case 0x82D2A22: // mr_sprintf
@@ -1396,7 +1413,7 @@ namespace MT6252_Simulator_Sharp.Simalator
 
                 case 0x83D1C28: // mr_mem_get()
                     changeTmp1 = 0;
-                    uc.MemWrite(0xF0166068, BitConverter.GetBytes(changeTmp1));
+                    uc.MemWrite(0xF0166068, Uint2Bytes((uint)changeTmp1));
                     break;
 
                 case 0x83890C8:
@@ -1421,16 +1438,18 @@ namespace MT6252_Simulator_Sharp.Simalator
                     // 过sub_80D2CA4
                     changeTmp = uc.RegRead(Arm.UC_ARM_REG_R5);
                     changeTmp2 = 0xff;
-                    uc.MemWrite(changeTmp + 3, new byte[] { changeTmp2 });
+                    uc.MemWrite(changeTmp + 3, Uint2Bytes(changeTmp2).Take(1).ToArray());
                     break;
 
                 case 0x80601ec:
                 case 0x80601ac: // 过sub_8060194的while(L1D_WIN_Init_SetCommonEvent)
-                    changeTmp = uc.RegRead(Arm.UC_ARM_REG_R0);
-                    uc.MemWrite(TMDA_BASE, BitConverter.GetBytes(changeTmp));
+                    changeTmp = uc.RegRead(Arm.UC_ARM_REG_R0); 
+                    //Console.WriteLine($"0x80601ac = ({changeTmp:x})");
+
+                    uc.MemWrite(TMDA_BASE, Uint2Bytes((uint)changeTmp));
                     break;
 
-                case 0x8223F66: // 过sub_8223f5c(L1层的)
+                case 0x8223F66: //过sub_8223f5c(L1层的) 暂时去不掉
                     changeTmp = 0;
                     uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp);
                     break;
@@ -1438,10 +1457,30 @@ namespace MT6252_Simulator_Sharp.Simalator
                 case 0x800DA28: // 暂时去不掉
                     changeTmp = 0;
                     uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp);
+                    Console.WriteLine($"0x800DA28({changeTmp:x})");
+
                     break;
 
                 default:
+                    isdef = true;
                     break;
+            }
+            //if (isdef == false)
+            //{
+            //    Console.WriteLine($"address({address:x})");
+            //}
+            //else
+            //{ 
+            //    Console.WriteLine($"address({address:x})");
+            //}
+
+            if(address== 0x8002e38)
+            {
+                Console.WriteLine($"address({address:x})");
+            }
+            if (address == 0x81b466c)
+            {
+                Console.WriteLine($"address({address:x})");
             }
 
             lastAddress = address;
@@ -1450,7 +1489,10 @@ namespace MT6252_Simulator_Sharp.Simalator
         private static void hookBlockCallBack(Unicorn uc, long address, int size, object user_data)
         {
             VmEvent vmEvent;
-            switch ((int)user_data)
+            int tmp = (int)user_data;
+            uint tmp2 = (uint)(tmp);
+            //Console.WriteLine("user_data " + user_data);
+            switch (tmp2)
             {
                 case 4: // 中断恢复
                     RestoreCpuContext(getRowOfArray(isrStackList,--irq_nested_count)); 
