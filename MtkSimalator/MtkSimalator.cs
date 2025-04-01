@@ -103,23 +103,24 @@ namespace MT6252_Simulator_Sharp.MtkSimalator
         public const uint DMA_SIM1_CHANNEL = 0x300;
         public const uint DMA_SIM2_CHANNEL = 0x400;
 
-        public static uint DMA_MSDC_DATA_ADDR_REG => 0x8102002C + DMA_MSDC_CHANNEL;
-        public static uint DMA_MSDC_TRANSFER_COUNT_REG => 0x81020010 + DMA_MSDC_CHANNEL;
-        public static uint DMA_MSDC_CONTROL_REG => 0x81020014 + DMA_MSDC_CHANNEL;
-        public static uint DMA_MSDC_START_REG => 0x81020018 + DMA_MSDC_CHANNEL;
-        public static uint DMA_MSDC_INTSTA_REG => 0x8102001C + DMA_MSDC_CHANNEL;
+        public const uint DMA_MSDC_DATA_ADDR_REG = 0x8102002C + DMA_MSDC_CHANNEL;
+        public const uint DMA_MSDC_TRANSFER_COUNT_REG = 0x81020010 + DMA_MSDC_CHANNEL;
 
-        public static uint DMA_SIM1_DATA_ADDR_REG => 0x8102002C + DMA_SIM1_CHANNEL;
-        public static uint DMA_SIM1_TRANSFER_COUNT_REG => 0x81020010 + DMA_SIM1_CHANNEL;
-        public static uint DMA_SIM1_CONTROL_REG => 0x81020014 + DMA_SIM1_CHANNEL;
-        public static uint DMA_SIM1_START_REG => 0x81020018 + DMA_SIM1_CHANNEL;
-        public static uint DMA_SIM1_INTSTA_REG => 0x8102001C + DMA_SIM1_CHANNEL;
+        public const long DMA_MSDC_CONTROL_REG = 0x81020014 + DMA_MSDC_CHANNEL;
+        public const uint DMA_MSDC_START_REG =0x81020018 + DMA_MSDC_CHANNEL;
+        public const uint DMA_MSDC_INTSTA_REG =0x8102001C + DMA_MSDC_CHANNEL;
 
-        public static uint DMA_SIM2_DATA_ADDR_REG => 0x8102002C + DMA_SIM2_CHANNEL;
-        public static uint DMA_SIM2_TRANSFER_COUNT_REG => 0x81020010 + DMA_SIM2_CHANNEL;
-        public static uint DMA_SIM2_CONTROL_REG => 0x81020014 + DMA_SIM2_CHANNEL;
-        public static uint DMA_SIM2_START_REG => 0x81020018 + DMA_SIM2_CHANNEL;
-        public static uint DMA_SIM2_INTSTA_REG => 0x8102001C + DMA_SIM2_CHANNEL;
+        public const uint DMA_SIM1_DATA_ADDR_REG = 0x8102002C + DMA_SIM1_CHANNEL;
+        public const uint DMA_SIM1_TRANSFER_COUNT_REG = 0x81020010 + DMA_SIM1_CHANNEL;
+        public const uint DMA_SIM1_CONTROL_REG = 0x81020014 + DMA_SIM1_CHANNEL;
+        public const uint DMA_SIM1_START_REG =0x81020018 + DMA_SIM1_CHANNEL;
+        public const uint DMA_SIM1_INTSTA_REG =0x8102001C + DMA_SIM1_CHANNEL;
+
+        public const uint DMA_SIM2_DATA_ADDR_REG =0x8102002C + DMA_SIM2_CHANNEL;
+        public const uint DMA_SIM2_TRANSFER_COUNT_REG =0x81020010 + DMA_SIM2_CHANNEL;
+        public const uint DMA_SIM2_CONTROL_REG = 0x81020014 + DMA_SIM2_CHANNEL;
+        public const uint DMA_SIM2_START_REG =0x81020018 + DMA_SIM2_CHANNEL;
+        public const uint DMA_SIM2_INTSTA_REG = 0x8102001C + DMA_SIM2_CHANNEL;
 
         public const uint DMA_FFPG_Count_REG = 0x81020d10; // & 1 means FIFO is full
         public const uint DMA_FFPG_ADDR_REG = 0x81020d2c;  // & 1 0 means FIFO is full, 1 means not full
@@ -285,7 +286,9 @@ namespace MT6252_Simulator_Sharp.MtkSimalator
         public const uint SIM2_CARD_TYPE_REG = 0x810f0070;
         public const uint SIM2_STATUS_REG = 0x810f0074;
 
-        const int lcdUpdateFlag = 0;
+        static bool lcdUpdateFlag = false;
+        static uint[] LCD_Layer_Address = new uint[4];
+
         const int size_32mb = 1024 * 1024 * 32;
         const int size_16mb = 1024 * 1024 * 16;
         const int size_8mb = 1024 * 1024 * 8;
@@ -301,7 +304,6 @@ namespace MT6252_Simulator_Sharp.MtkSimalator
 
         const int UC_ARCH_ARM = 1;
         const int UC_MODE_ARM = 0;
-         
 
         // CPU中断服务地址
         const long CPU_ISR_CB_ADDRESS = 0x50000000;
@@ -314,6 +316,23 @@ namespace MT6252_Simulator_Sharp.MtkSimalator
         static IntPtr RAM40_POOL;
 
         static IntPtr RAMF0_POOL;
+
+        static uint MSDC_CMD_CACHE = 0;
+
+        static uint MSDC_DATA_ADDR = 0;
+
+        static uint IRQ_MASK_SET_L_Data = 0;
+        // Instance of the struct
+        public static SerialFlash_Control SF_C_Frame = new SerialFlash_Control
+        {
+            SR_REG = new byte[3],
+            cmd = 0,
+            address = 0,
+            cmdRev = 0,
+            sendDataCount = 0,
+            readDataCount = 0,
+            cacheData = new uint[64]
+        };
 
         static IntPtr ArrToPtr(byte[] array)
         {
@@ -422,6 +441,619 @@ namespace MT6252_Simulator_Sharp.MtkSimalator
         {
 
         }
+
+        static long lastAddress = 0;
+
+        private static void hookRamCallBack(Unicorn uc, int type, long address, int size, long value, object userData)
+        {
+            int data = (int)userData;
+
+            // Merge images: smaller layer numbers are lower layers, larger are upper layers
+            switch (address)
+            {
+                case SIM1_CARD_TYPE_REG:
+                    changeTmp1 = 0x20;
+                    uc.MemWrite(address, BitConverter.GetBytes(changeTmp1));
+                    Console.WriteLine($"read sim1_card_type({lastAddress:x})");
+                    break;
+                case SIM2_CARD_TYPE_REG:
+                    changeTmp1 = 0x20;
+                    uc.MemWrite(address, BitConverter.GetBytes(changeTmp1));
+                    Console.WriteLine($"read sim2_card_type({lastAddress:x})");
+                    break;
+                case SIM1_TIDE:
+                    if (data == 1)
+                        SIM_TIDE_HANDLE(ref vm_sim1_dev, 0, value);
+                    break;
+                case SIM2_TIDE:
+                    if (data == 1)
+                        SIM_TIDE_HANDLE(ref vm_sim2_dev, 1, value);
+                    break;
+                case SIM1_IRQ_ENABLE:
+                    if (data == 1)
+                        SIM_IRQ_HANDLE(ref vm_sim1_dev, 0, value);
+                    break;
+                case SIM2_IRQ_ENABLE:
+                    if (data == 1)
+                        SIM_IRQ_HANDLE(ref vm_sim2_dev, 1, value);
+                    break;
+                case SIM1_BASE:
+                    if (data == 1)
+                        SIM_BASE_HANDLE(ref vm_sim1_dev, 0, value);
+                    break;
+                case SIM2_BASE:
+                    if (data == 1)
+                        SIM_BASE_HANDLE(ref vm_sim2_dev, 1, value);
+                    break;
+                case SIM1_DATA:
+                    SIM_DATA_HANDLE(ref vm_sim1_dev, 0, data, value);
+                    break;
+                case SIM2_DATA:
+                    SIM_DATA_HANDLE(ref vm_sim2_dev, 1, data, value);
+                    break;
+                case 0x82050000: // Write 1 becomes 0
+                    changeTmp = 0;
+                    uc.MemWrite(address, BitConverter.GetBytes(changeTmp));
+                    break;
+                case 0xa0000000:
+                    changeTmp = 0x5555;
+                    uc.MemWrite(address, BitConverter.GetBytes(changeTmp));
+                    break;
+                case 0xA10003F6:
+                    changeTmp = 0x8888;
+                    uc.MemWrite(address, BitConverter.GetBytes(changeTmp));
+                    break;
+                case 0x9000000c: // LCD Interface Frame Transfer Register
+                    if (value == 0 && data == 1)
+                    {
+                        lcdUpdateFlag = true;
+                    }
+                    break;
+                case 0x9000014c: // Layer 3 Address
+                    if (data == 1)
+                    {
+                        LCD_Layer_Address[3] = (uint)value;
+                    }
+                    break;
+                case 0x9000011c: // Layer 2 Address
+                    if (data == 1)
+                    {
+                        LCD_Layer_Address[2] = (uint)value;
+                    }
+                    break;
+                case 0x900000ec: // Layer 1 Address
+                    if (data == 1)
+                    {
+                        LCD_Layer_Address[1] = (uint)value;
+                    }
+                    break;
+                case 0x900000bc: // Layer 0 Address
+                    if (data == 1)
+                    {
+                        LCD_Layer_Address[0] = (uint)value;
+                    }
+                    break;
+                case DMA_MSDC_CONTROL_REG:
+                    if (data == 1)
+                    {
+                        vm_dma_msdc_config.Control = (uint)value;
+                        vm_dma_msdc_config.Chanel = (DMA_MASTER_CHANEL)(byte)((value >> 20) & 0b11111);
+                        vm_dma_msdc_config.Direction = (DMA_DATA_DIRECTION)(byte)((value >> 18) & 1);
+                        vm_dma_msdc_config.Align = (DMA_DATA_BYTE_ALIGN)(byte)(value & 0b11);
+                        vm_dma_msdc_config.TransferEndInterruptEnable = (byte)((value >> 15) & 1);
+                    }
+                    break;
+                case DMA_SIM1_CONTROL_REG:
+                    if (data == 1)
+                    {
+                        vm_dma_sim1_config.Control = (uint)value;
+                        vm_dma_sim1_config.Chanel = (DMA_MASTER_CHANEL)(byte)((value >> 20) & 0b11111);
+                        vm_dma_sim1_config.Direction = (DMA_DATA_DIRECTION)(byte)((value >> 18) & 1);
+                        vm_dma_sim1_config.Align = (DMA_DATA_BYTE_ALIGN)(byte)(value & 0b11);
+                        vm_dma_sim1_config.TransferEndInterruptEnable = (byte)((value >> 15) & 1);
+                    }
+                    break;
+                case DMA_SIM2_CONTROL_REG:
+                    if (data == 1)
+                    {
+                        vm_dma_sim2_config.Control = (uint)value;
+                        vm_dma_sim2_config.Chanel = (DMA_MASTER_CHANEL)(byte)((value >> 20) & 0b11111);
+                        vm_dma_sim2_config.Direction = (DMA_DATA_DIRECTION)(byte)((value >> 18) & 1);
+                        vm_dma_sim2_config.Align = (DMA_DATA_BYTE_ALIGN)(byte)(value & 0b11);
+                        vm_dma_sim2_config.TransferEndInterruptEnable = (byte)((value >> 15) & 1);
+                    }
+                    break;
+                case DMA_MSDC_DATA_ADDR_REG:
+                    if (data == 1)
+                        vm_dma_msdc_config.DataAddr = (uint)value;
+                    break;
+                case DMA_SIM1_DATA_ADDR_REG:
+                    if (data == 1)
+                        vm_dma_sim1_config.DataAddr = (uint)value;
+                    break;
+                case DMA_SIM2_DATA_ADDR_REG:
+                    if (data == 1)
+                        vm_dma_sim2_config.DataAddr = (uint)value;
+                    break;
+                case DMA_MSDC_TRANSFER_COUNT_REG:
+                    if (data == 1)
+                    {
+                        if (vm_dma_msdc_config.Align == DMA_DATA_BYTE_ALIGN.DMA_DATA_BYTE_ALIGN_FOUR)
+                            value *= 4;
+                        if (vm_dma_msdc_config.Align == DMA_DATA_BYTE_ALIGN.DMA_DATA_BYTE_ALIGN_TWO)
+                            value *= 2;
+                        vm_dma_msdc_config.TransferCount = (uint)value;
+                    }
+                    break;
+                case DMA_SIM1_TRANSFER_COUNT_REG:
+                    if (data == 1)
+                    {
+                        if (vm_dma_sim1_config.Align == DMA_DATA_BYTE_ALIGN.DMA_DATA_BYTE_ALIGN_FOUR)
+                            value *= 4;
+                        if (vm_dma_sim1_config.Align == DMA_DATA_BYTE_ALIGN.DMA_DATA_BYTE_ALIGN_TWO)
+                            value *= 2;
+                        vm_dma_sim1_config.TransferCount = (uint)value;
+                    }
+                    break;
+                case DMA_SIM2_TRANSFER_COUNT_REG:
+                    if (data == 1)
+                    {
+                        if (vm_dma_sim2_config.Align == DMA_DATA_BYTE_ALIGN.DMA_DATA_BYTE_ALIGN_FOUR)
+                            value *= 4;
+                        if (vm_dma_sim2_config.Align == DMA_DATA_BYTE_ALIGN.DMA_DATA_BYTE_ALIGN_TWO)
+                            value *= 2;
+                        vm_dma_sim2_config.TransferCount = (uint)value;
+                    }
+                    break;
+                case DMA_MSDC_START_REG:
+                    if (data == 1 && value == 0x8000)
+                    {
+                        if (vm_dma_msdc_config.Chanel == DMA_MASTER_CHANEL.MSDC)
+                        {
+                            vm_dma_msdc_config.ConfigFinish = 1;
+                        }
+                        else
+                        {
+                            Console.WriteLine($"unhandle msdc dma chanel[{vm_dma_msdc_config.Chanel:x}]");
+                        }
+                    }
+                    break;
+                case DMA_SIM1_START_REG:
+                    if (data == 1 && value == 0x8000)
+                    {
+                        if (vm_dma_sim1_config.Chanel == 0)
+                        {
+                            vm_dma_sim1_config.ConfigFinish = 1;
+                            Console.WriteLine($"SIM卡1的DMA开启({irq_nested_count})");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"unhandle sim1 dma chanel[{vm_dma_sim1_config.Chanel:x}]");
+                        }
+                    }
+                    break;
+                case DMA_SIM2_START_REG:
+                    if (data == 1 && value == 0x8000)
+                    {
+                        if (vm_dma_sim2_config.Chanel == (DMA_MASTER_CHANEL)0x13)
+                        {
+                            Console.WriteLine("SIM卡2的DMA开启");
+                            vm_dma_sim2_config.ConfigFinish = 1;
+                        }
+                        else
+                        {
+                            Console.WriteLine($"unhandle sim2 dma chanel[{vm_dma_sim2_config.Chanel:x}]");
+                        }
+                    }
+                    break;
+                case 0x810C0090: // Read register, return 0x10
+                    if (data == 0)
+                    {
+                        changeTmp = 0x10;
+                        uc.MemWrite(address, BitConverter.GetBytes(changeTmp));
+                    }
+                    break;
+                case SD_CMD_STAT_REG: // Read SD command status register
+                    changeTmp = 1;
+                    uc.MemWrite(address, BitConverter.GetBytes(changeTmp));
+                    break;
+                case SD_DATA_RESP_REG0:
+                    switch (MSDC_CMD_CACHE)
+                    {
+                        case SDC_CMD_CMD0:
+                            break;
+                        case SDC_CMD_CMD1:
+                            break;
+                        case SDC_CMD_CMD2:
+                            changeTmp1 = 0xF016C1C4;
+                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD7:
+                            break;
+                        case SDC_CMD_CMD8:
+                            changeTmp1 = 0x1aa;
+                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD9:
+                            changeTmp1 = 0x0000e004;
+                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD55:
+                            changeTmp1 = 0x20;
+                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD41_SD:
+                            changeTmp1 = 0x80FF8000;
+                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD3_SD:
+                            changeTmp1 = 0x3001;
+                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD12:
+                            break;
+                        case SDC_CMD_CMD13:
+                            changeTmp1 = 0x100;
+                            uc.MemWrite(SD_DATA_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD16:
+                            break;
+                        case SDC_CMD_CMD17:
+                        case SDC_CMD_CMD18:
+                            if (vm_dma_msdc_config.ConfigFinish == 1)
+                            {
+                                byte[] dataCachePtr = readSDFile(MSDC_DATA_ADDR, vm_dma_msdc_config.TransferCount);
+                                if (dataCachePtr != null)
+                                {
+                                    uc.MemWrite(vm_dma_msdc_config.DataAddr, dataCachePtr);
+                                }
+                                vm_dma_msdc_config.ConfigFinish = 0;
+                                changeTmp = 0x8000;
+                                uc.MemWrite(SDC_DATSTA_REG, BitConverter.GetBytes(changeTmp));
+                                if (vm_dma_msdc_config.TransferEndInterruptEnable == 1)
+                                {
+                                    vm_dma_msdc_config.TransferEndInterruptEnable = 0;
+                                    StartCallback(0x816D9F0 + 1, 0);
+                                }
+                            }
+                            break;
+                        case SDC_CMD_CMD24:
+                        case SDC_CMD_CMD25:
+                            if (vm_dma_msdc_config.ConfigFinish == 1)
+                            {
+                                vm_dma_msdc_config.ConfigFinish = 0;
+                                byte[] buffer = new byte[vm_dma_msdc_config.TransferCount];
+                                uc.MemRead(vm_dma_msdc_config.DataAddr, buffer);
+                                writeSDFile(buffer, MSDC_DATA_ADDR, vm_dma_msdc_config.TransferCount);
+                                changeTmp = 0x8000;
+                                uc.MemWrite(SDC_DATSTA_REG, BitConverter.GetBytes(changeTmp));
+                                if (vm_dma_msdc_config.TransferEndInterruptEnable == 1)
+                                {
+                                    vm_dma_msdc_config.TransferEndInterruptEnable = 0;
+                                    StartCallback(0x816D9F0 + 1, 0);
+                                }
+                            }
+                            break;
+                        case SDC_CMD_ACMD42:
+                            break;
+                        case SDC_CMD_ACMD51:
+                            break;
+                    }
+                    break;
+                case SD_DATA_RESP_REG1:
+                    switch (MSDC_CMD_CACHE)
+                    {
+                        case SDC_CMD_CMD2:
+                            changeTmp1 = 0x77;
+                            uc.MemWrite(SD_DATA_RESP_REG1, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD9:
+                            changeTmp1 = 0x000ff577;
+                            uc.MemWrite(SD_DATA_RESP_REG1, BitConverter.GetBytes(changeTmp1));
+                            break;
+                    }
+                    break;
+                case SD_DATA_RESP_REG2:
+                    switch (MSDC_CMD_CACHE)
+                    {
+                        case SDC_CMD_CMD2:
+                            changeTmp1 = 0;
+                            uc.MemWrite(SD_DATA_RESP_REG2, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD9:
+                            changeTmp1 = 0x00090ff7;
+                            uc.MemWrite(SD_DATA_RESP_REG2, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD17:
+                            break;
+                    }
+                    break;
+                case SD_DATA_RESP_REG3:
+                    switch (MSDC_CMD_CACHE)
+                    {
+                        case SDC_CMD_CMD2:
+                            changeTmp1 = 0x3;
+                            uc.MemWrite(SD_DATA_RESP_REG3, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD9:
+                            changeTmp1 = 0x000004a0;
+                            uc.MemWrite(SD_DATA_RESP_REG3, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_ACMD51:
+                            changeTmp1 = 0;
+                            uc.MemWrite(SD_DATA_RESP_REG3, BitConverter.GetBytes(changeTmp1));
+                            break;
+                    }
+                    break;
+                case SD_CMD_RESP_REG0:
+                    switch (MSDC_CMD_CACHE)
+                    {
+                        case SDC_CMD_CMD2:
+                            changeTmp1 = 0xF016C1C4;
+                            uc.MemWrite(SD_CMD_RESP_REG0, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD7:
+                            break;
+                        case SDC_CMD_CMD13:
+                            break;
+                        case SDC_CMD_CMD16:
+                            break;
+                        case SDC_CMD_CMD17:
+                            break;
+                        case SDC_CMD_CMD18:
+                            break;
+                        case SDC_CMD_CMD24:
+                            break;
+                        case SDC_CMD_ACMD42:
+                            break;
+                    }
+                    break;
+                case SD_CMD_RESP_REG1:
+                    switch (MSDC_CMD_CACHE)
+                    {
+                        case SDC_CMD_CMD2:
+                            changeTmp1 = 0x77;
+                            uc.MemWrite(SD_CMD_RESP_REG1, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD13:
+                            break;
+                        case SDC_CMD_CMD16:
+                            break;
+                        case SDC_CMD_CMD17:
+                            break;
+                        case SDC_CMD_CMD18:
+                            break;
+                        case SDC_CMD_CMD55:
+                            break;
+                        case SDC_CMD_ACMD51:
+                            break;
+                        default:
+                            changeTmp = 0;
+                            uc.MemWrite(SD_CMD_RESP_REG1, BitConverter.GetBytes(changeTmp));
+                            break;
+                    }
+                    break;
+                case SD_CMD_RESP_REG2:
+                    switch (MSDC_CMD_CACHE)
+                    {
+                        case SDC_CMD_CMD2:
+                            changeTmp1 = 0;
+                            uc.MemWrite(SD_CMD_RESP_REG2, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case SDC_CMD_CMD3_SD:
+                            break;
+                        case SDC_CMD_CMD7:
+                            break;
+                        case SDC_CMD_CMD8:
+                            break;
+                        case SDC_CMD_CMD9:
+                            break;
+                        case SDC_CMD_CMD12:
+                            break;
+                        case SDC_CMD_CMD13:
+                            break;
+                        case SDC_CMD_CMD17:
+                            break;
+                        case SDC_CMD_CMD18:
+                            break;
+                        case SDC_CMD_CMD24:
+                            break;
+                        case 0x90:
+                            break;
+                        case SDC_CMD_CMD55:
+                            break;
+                        case SDC_CMD_ACMD51:
+                            break;
+                        case 0x40000000:
+                            break;
+                    }
+                    break;
+                case SD_CMD_RESP_REG3:
+                    switch (MSDC_CMD_CACHE)
+                    {
+                        case SDC_CMD_CMD2:
+                            changeTmp1 = 0x3;
+                            uc.MemWrite(SD_CMD_RESP_REG3, BitConverter.GetBytes(changeTmp1));
+                            break;
+                        case 0x8b3:
+                            break;
+                    }
+                    break;
+                case SD_ARG_REG:
+                    if (data == 1)
+                    {
+                        MSDC_DATA_ADDR = (uint)value;
+                    }
+                    break;
+                case SD_CMD_REG:
+                    if (data == 1)
+                    {
+                        MSDC_CMD_CACHE = (ushort)(value & 0xffff);
+                    }
+                    break;
+                case 0xF015E327:
+                    if (value == 0 && data == 1)
+                    {
+                        confirm("warning", "sd filesystem mount fail");
+                    }
+                    break;
+                case IRQ_MASK_SET_L:
+                    if (data == 1)
+                    {
+                        IRQ_MASK_SET_L_Data &= ~(uint)value;
+                    }
+                    break;
+                case IRQ_CLR_MASK_L:
+                    if (data == 1)
+                    {
+                        IRQ_MASK_SET_L_Data |= (uint)value;
+                    }
+                    break;
+                case RW_SFI_OUTPUT_LEN_REG:
+                    if (data == 1)
+                    {
+                        SF_C_Frame.sendDataCount = (uint)value;
+                    }
+                    break;
+                case RW_SFI_INPUT_LEN_REG:
+                    if (data == 1)
+                    {
+                        SF_C_Frame.readDataCount = (uint)value;
+                    }
+                    break;
+                case RW_SFI_MAC_CTL:
+                    if (data == 1)
+                    {
+                        changeTmp1 = (uint)value;
+                        if ((changeTmp1 & 0xc) == 0xc)
+                        {
+                            if (SF_C_Frame.cmdRev == 0)
+                            {
+                                SF_C_Frame.cmdRev = 1;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (SF_C_Frame.cmdRev == 1)
+                        {
+                            changeTmp1 = SF_C_Frame.cacheData[0];
+                            SF_C_Frame.cmd = (byte)(changeTmp1 & 0xff);
+                            SF_C_Frame.address = (changeTmp1 >> 24) | (((changeTmp1 >> 16) & 0xff) << 8) | (((changeTmp1 >> 8) & 0xff) << 16);
+                            switch (SF_C_Frame.cmd)
+                            {
+                                case 0x2:
+                                    // SF_CMD_PAGE_PROG
+                                    // 计算页地址
+                                    // changeTmp1 = (SF_C_Frame.address / 256) * 256;
+                                    // 分别是原前8位，中8位，高8位
+                                    // printf("flash addr::%x\n", SF_C_Frame.address);
+                                    // 减去1cmd 3addr 就是实际写入长度，所以是 - 4
+                                    //  地址4字节对齐
+                                    changeTmp = 0x8000000 | SF_C_Frame.address;
+                                    SF_C_Frame.sendDataCount -= 4;
+                                    uc.MemWrite(changeTmp, Uints2Bytes(SF_C_Frame.cacheData.Skip(4).Take((int)SF_C_Frame.sendDataCount).ToArray())); 
+                                    break;
+                                case 0x5:
+                                    changeTmp = SF_C_Frame.SR_REG[0];
+                                    changeTmp |= (uint)(SF_C_Frame.SR_REG[1] << 8);
+                                    changeTmp |= (uint)(SF_C_Frame.SR_REG[2] << 16);
+                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG, BitConverter.GetBytes(changeTmp));
+                                    break;
+                                case 0x1:
+                                    changeTmp = SF_C_Frame.cacheData[0];
+                                    SF_C_Frame.SR_REG[0] = (byte)(changeTmp & 0xff);
+                                    SF_C_Frame.SR_REG[1] = (byte)((changeTmp >> 8) & 0xff);
+                                    SF_C_Frame.SR_REG[2] = (byte)((changeTmp >> 16) & 0xff);
+                                    break;
+                                case 0x6:
+                                case 0xb9:
+                                case 0xaf:
+                                case 0x38:
+                                    break;
+                                case 0x9f:
+                                    changeTmp = 1;
+                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG, BitConverter.GetBytes(changeTmp));
+                                    changeTmp = 2;
+                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG + 4, BitConverter.GetBytes(changeTmp));
+                                    changeTmp = 3;
+                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG + 8, BitConverter.GetBytes(changeTmp));
+                                    break;
+                                case 0xc0:
+                                    break;
+                            }
+                            SF_C_Frame.cmdRev = 0;
+                            SF_C_Frame.cmd = 0;
+                            changeTmp = 2;
+                            uc.MemWrite(RW_SFI_MAC_CTL, BitConverter.GetBytes(changeTmp));
+                        }
+                    }
+                    break;
+                default:
+                    if (address >= RW_SFI_GPRAM_DATA_REG && address <= (RW_SFI_GPRAM_DATA_REG + 256))
+                    {
+                        if (data == 1)
+                        {
+                            int off = (int)(address - RW_SFI_GPRAM_DATA_REG) / 4;
+                            SF_C_Frame.cacheData[off] = (uint)value;
+                        }
+                    }
+                    break;
+            }
+        }
+         
+        private static void confirm(string v1, string v2)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static void writeSDFile(byte[] buffer, uint mSDC_DATA_ADDR, uint transferCount)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static void StartCallback(int v1, int v2)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static byte[] readSDFile(uint mSDC_DATA_ADDR, uint transferCount)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static void SIM_DATA_HANDLE(ref VM_SIM_DEV vm_sim1_dev, int v, int data, long value)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static void SIM_BASE_HANDLE(ref VM_SIM_DEV vm_sim1_dev, int v, long value)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static void SIM_IRQ_HANDLE(ref VM_SIM_DEV vm_sim1_dev, int v, long value)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static void SIM_TIDE_HANDLE(ref VM_SIM_DEV vm_sim1_dev, int v, long value)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static byte[] Uints2Bytes(uint[] uintArray)
+        { 
+            byte[] byteArray = new byte[uintArray.Length * sizeof(uint)]; 
+            Buffer.BlockCopy(uintArray, 0, byteArray, 0, byteArray.Length);
+            return byteArray;
+        }
+
+        private static byte[] Uint2Bytes(uint uintdata)
+        {
+            return Uints2Bytes(new uint[] { uintdata });
+        }
+
         private static void hookCodeCallBack(Unicorn uc, long address, int size, object userData)
         {
             long changeTmp1 = 0;
@@ -541,7 +1173,7 @@ namespace MT6252_Simulator_Sharp.MtkSimalator
                 case 7:
                     // 过方法sub_87035D4 (0x4000801E)
                     changeTmp = 1;
-                    MTK.RegWrite( Arm.UC_ARM_REG_R0, changeTmp);
+                    uc.RegWrite( Arm.UC_ARM_REG_R0, changeTmp);
 
                     break;
                 case 8: // 各种事件处理
@@ -561,10 +1193,10 @@ namespace MT6252_Simulator_Sharp.MtkSimalator
                                     break;
                                 case VM_EVENT.VM_EVENT_SIM_IRQ:
                                     // 进入usim中断
-                                    changeTmp1 = (int)vmEvent.R0;
+                                    changeTmp1 = vmEvent.R0;
                                     if (vmEvent.R1 == 0)
                                     {
-                                        UcMemWrite(uc, SIM1_IRQ_STATUS, ref changeTmp1, 4); // 卡一
+                                        uc.MemWrite( SIM1_IRQ_STATUS,Uint2Bytes( changeTmp1)); // 卡一
                                         if (!StartInterrupt(5, address))
                                         {
                                             EnqueueVMEvent(vmEvent.Event, vmEvent.R0, vmEvent.R1);
@@ -572,7 +1204,7 @@ namespace MT6252_Simulator_Sharp.MtkSimalator
                                     }
                                     if (vmEvent.R1 == 1)
                                     {
-                                        UcMemWrite(uc, SIM2_IRQ_STATUS, ref changeTmp1, 4); // 卡二
+                                        uc.MemWrite(SIM2_IRQ_STATUS, Uint2Bytes(changeTmp1)); // 卡二 
                                         if (!StartInterrupt(28, address))
                                         {
                                             EnqueueVMEvent(vmEvent.Event, vmEvent.R0, vmEvent.R1);
@@ -641,17 +1273,14 @@ namespace MT6252_Simulator_Sharp.MtkSimalator
         private static void RestoreCpuContext(CpuContext context)
         {
             // 恢复CPU上下文
-        }
+            // 还原状态
+            int[] regs = new int[] { Arm.UC_ARM_REG_CPSR, Arm.UC_ARM_REG_R0, Arm.UC_ARM_REG_R1, Arm.UC_ARM_REG_R2, Arm.UC_ARM_REG_R3, Arm.UC_ARM_REG_R4, Arm.UC_ARM_REG_R5, Arm.UC_ARM_REG_R6, Arm.UC_ARM_REG_R7, Arm.UC_ARM_REG_R8, Arm.UC_ARM_REG_R9, Arm.UC_ARM_REG_R10, Arm.UC_ARM_REG_R11, Arm.UC_ARM_REG_R12, Arm.UC_ARM_REG_R13, Arm.UC_ARM_REG_LR, Arm.UC_ARM_REG_PC };
+            //u32* addr[] = { stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++ };
+            //uc_reg_write_batch(MTK, &regs, &addr, 17);
 
-        private static void UcRegWrite(Unicorn uc, VM_EVENT reg, ref int value)
-        {
-            // 写入寄存器
-        }
-
-        private static void UcMemWrite(Unicorn uc, ulong address, ref int value, int size)
-        {
-            // 写入内存
-        }
+            //MTK.RegWrite;
+        } 
+    
 
         private static bool StartInterrupt(int irq, long address)
         {
@@ -691,12 +1320,12 @@ namespace MT6252_Simulator_Sharp.MtkSimalator
             // 更新RTC时间
         }
 
-        private static int irq_nested_count = 0;
+        private static uint irq_nested_count = 0;
         private static Stack<CpuContext> isrStackList = new Stack<CpuContext>();
         private static CpuContext stackCallback = new CpuContext();
-        private static int changeTmp = 0;
-        private static int changeTmp1 = 0;
-        private static int VmEventPtr = 0;
+        private static uint changeTmp = 0;
+        private static uint changeTmp1 = 0;
+        private static uint VmEventPtr = 0;
         private static Queue<VmEvent> vmEventQueue = new Queue<VmEvent>();
 
     }

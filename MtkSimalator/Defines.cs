@@ -83,6 +83,18 @@ namespace MT6252_Simulator_Sharp.MtkSimalator
         SIM_IRQ_DMA_CMD = 0x800
     }
 
+    public struct SerialFlash_Control
+    {
+        public byte[] SR_REG;          // Size 3
+        public byte cmd;
+        public uint address;
+        public byte cmdRev;            // 1 = command received
+        public uint sendDataCount;
+        public uint readDataCount;
+        public uint[] cacheData;       // Size 64
+    }
+
+
     public enum DMA_MASTER_CHANEL
     {
         SIM,
@@ -123,7 +135,7 @@ namespace MT6252_Simulator_Sharp.MtkSimalator
 
     public struct VM_DMA_CONFIG
     {
-        public int Control;                          // 控制寄存器
+        public uint Control;                          // 控制寄存器
         public DMA_MASTER_CHANEL Chanel;            // DMA 主通道
         public DMA_DATA_DIRECTION Direction;        // 数据传输方向
         public DMA_DATA_BYTE_ALIGN Align;           // 数据对齐方式
