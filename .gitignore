@@ -10,3 +10,4 @@ bin
 .vs
 *.user
 Rom/fat32.img
+Rom/08000000.bin.til

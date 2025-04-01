@@ -50,6 +50,7 @@ public partial class MainWindow : Window
             //// 分配上下文
             //uc_context_alloc(MTK, out callback_context);
             //uc_context_alloc(MTK, out timer_isr_context);
+             
 
             // 尝试打开SD卡镜像文件
             try
@@ -95,7 +96,7 @@ public partial class MainWindow : Window
             */
 
             // 设置控制台缓冲区（C#中无直接等效，可能需要调用Windows API）
-            Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = false });
+            //Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = false });
 
             MtkSimalator.UpdateSurfaceAction = UpdateSurfaceAction;
             // 启动模拟器线程
@@ -107,13 +108,15 @@ public partial class MainWindow : Window
 
             Console.WriteLine("Unicorn Engine 初始化成功！！");
         }
+
         // 清理资源
-        MtkSimalator. SD_File_Handle?.Dispose();
+        //MtkSimalator.SD_File_Handle?.Dispose();
         //MtkSimalator.FLASH_File_Handle?.Dispose();
     }
 
     void UpdateSurfaceAction(byte[] bytes)
     {
+        Console.WriteLine("bytes " + bytes.Length);
         myscreen.Dispatcher.Invoke(() =>
         {
             //Convert it to BitmapImage

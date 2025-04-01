@@ -1,6 +1,7 @@
 ﻿using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using UnicornEngine;
@@ -9,6 +10,7 @@ using UnicornEngine.Const;
 
 namespace MT6252_Simulator_Sharp.Simalator
 {
+    //https://github.com/unicorn-engine/unicorn/releases/download/1.0.2/unicorn-1.0.2-win32.zip
     public class MtkSimalator
     {
         // 定时中断配置，单位毫秒
@@ -372,21 +374,24 @@ namespace MT6252_Simulator_Sharp.Simalator
             cacheData = new uint[64]
         };
 
-        static IntPtr ArrToPtr(byte[] array)
-        {
-            return System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(array, 0); 
-        }
+        //static IntPtr ArrToPtr(byte[] array)
+        //{
+        //    return System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(array, 0); 
+        //}
 
         public static IntPtr malloc(int size)
         {
-            return ArrToPtr(new byte[size]);
+            return IntPtr.Zero;
+//            return ArrToPtr(new byte[size]);
         }
 
-        public static Unicorn MTK;
+        //初始MTK引擎
+        public static Unicorn MTK = null;
 
         public static void uc_mem_map_ptr(Unicorn mtk, long address, int size, int perms, IntPtr ptr)
         {
-            mtk.MemMapPtr(address, size, perms, ptr);
+            mtk.MemMap(address, size, perms);
+            //mtk.MemMapPtr(address, size, perms, ptr);
         }
 
         public static VM_SIM_DEV vm_sim1_dev = new VM_SIM_DEV(true);
@@ -402,9 +407,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         /// </summary>
         public static void initMtkSimalator()
         {
-            //初始MTK引擎
             MTK = new Unicorn(UC_ARCH_ARM, UC_MODE_ARM);
-
             ROM_MEMPOOL = malloc(size_16mb);
             RAM_MEMPOOL = malloc(size_8mb);
             // 映射寄存器
@@ -424,6 +427,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             uc_mem_map_ptr(MTK, 0x90000000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
             uc_mem_map_ptr(MTK, 0xA0000000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
             uc_mem_map_ptr(MTK, 0xA1000000, size_1mb, UC_PROT_ALL, malloc(size_1mb));
+
             uc_mem_map_ptr(MTK, 0xA2000000, size_4mb, UC_PROT_ALL, malloc(size_4mb));
             uc_mem_map_ptr(MTK, 0xA3000000, size_4mb, UC_PROT_ALL, malloc(size_4mb));
 
@@ -1342,9 +1346,11 @@ namespace MT6252_Simulator_Sharp.Simalator
             long changeTmp = 0;
             byte changeTmp2 = 0;
             byte[] globalSprintfBuff = new byte[128];
-            long lastSIM_DMA_ADDR = 0;
-            long lastAddress = 0;
 
+            long lastSIM_DMA_ADDR = 0;
+
+            //Console.WriteLine($"address = ({address:X})");
+            
             switch (address)
             {
                 case 0x8370220: // 直接返回开机流程任务全部完成
@@ -1371,18 +1377,21 @@ namespace MT6252_Simulator_Sharp.Simalator
                 case 0x819f5b4:
                     changeTmp1 = uc.RegRead(Arm.UC_ARM_REG_R0);
                     uc.MemRead(changeTmp1, globalSprintfBuff);
-                    Console.WriteLine($"kal_debug_print({System.Text.Encoding.ASCII.GetString(globalSprintfBuff)})({lastAddress:X})");
+                    byte[] buftemp = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
+                    Console.WriteLine($"kal_debug_print({System.Text.Encoding.UTF8.GetString(buftemp)})({lastAddress:X})");
                     break;
 
                 case 0x82D2A22: // mr_sprintf
                     uc.MemRead(0xF028EDC4, globalSprintfBuff);
-                    Console.WriteLine($"mr_sprintf({System.Text.Encoding.ASCII.GetString(globalSprintfBuff)})");
+                    byte[] buftemp2 = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
+                    Console.WriteLine($"mr_sprintf({System.Text.Encoding.UTF8.GetString(buftemp2)})");
                     break;
 
                 case 0x81a4d54:
                     changeTmp1 = uc.RegRead(Arm.UC_ARM_REG_R0);
-                    uc.MemRead(changeTmp1, globalSprintfBuff);
-                    Console.WriteLine($"dbg_print({System.Text.Encoding.ASCII.GetString(globalSprintfBuff)})[{lastAddress:X}]");
+                    uc.MemRead(changeTmp1, globalSprintfBuff); 
+                    byte[] buftemp3 = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
+                    Console.WriteLine($"dbg_print({System.Text.Encoding.UTF8.GetString(buftemp3)})[{lastAddress:X}]");
                     break;
 
                 case 0x83D1C28: // mr_mem_get()
@@ -1441,7 +1450,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         private static void hookBlockCallBack(Unicorn uc, long address, int size, object user_data)
         {
             VmEvent vmEvent;
-            switch ((uint)user_data)
+            switch ((int)user_data)
             {
                 case 4: // 中断恢复
                     RestoreCpuContext(getRowOfArray(isrStackList,--irq_nested_count)); 
@@ -1701,10 +1710,10 @@ namespace MT6252_Simulator_Sharp.Simalator
                 // 连续按下间隔 t = v / 32ms
                 changeTmp = 32; 
                 MTK.MemWrite(0x81070018, Uint2Bytes(changeTmp).Take(2).ToArray()); 
-            }
-
+            }  
         }
-        public static VmEvent[] VmEventHandleList = new VmEvent[256];
+
+        public static VmEvent[] VmEventHandleList = Enumerable.Range(0, 256) .Select(_ => new VmEvent()) .ToArray();
         public static VmEvent firstEvent = new VmEvent();
         /// <summary>
         /// 锁，线程锁
@@ -1872,7 +1881,8 @@ namespace MT6252_Simulator_Sharp.Simalator
 
         public static void uc_mem_write(Unicorn uc, uint rTC_IRQ_STATUS,byte[]  data, int count)
         {
-            uc.MemWrite(rTC_IRQ_STATUS, data.Take(count).ToArray());
+            //byte[] bytes = data.Take(count).ToArray();
+            uc.MemWrite(rTC_IRQ_STATUS, data);
         } 
 
         /// <summary>
@@ -1979,9 +1989,10 @@ namespace MT6252_Simulator_Sharp.Simalator
             uc_mem_write(MTK, 0x810b002c, ref changeTmp1, 4); // 年
         }
 
-        private static void uc_mem_write(Unicorn uc, uint rTC_IRQ_STATUS, ref uint changeTmp1, int v)
+        private static void uc_mem_write(Unicorn uc, uint rTC_IRQ_STATUS, ref uint changeTmp1, int count)
         {
-            uc.MemWrite(rTC_IRQ_STATUS, Uint2Bytes(changeTmp1)); 
+            byte[] bytes = Uint2Bytes(changeTmp1).Take(count).ToArray();
+            uc.MemWrite(rTC_IRQ_STATUS, bytes); 
         }  
 
         private static void uc_mem_read(Unicorn uc, long address, ref uint changeTmp1, int v2)
@@ -2069,17 +2080,19 @@ namespace MT6252_Simulator_Sharp.Simalator
         /// 运行ARM程序模拟
         /// </summary>
         /// <param name="startAddrObj">起始地址对象</param>
-        public static void RunArmProgram(uint startAddrObj)
+        public static void RunArmProgram(uint startAddress)
         {
             // 初始化SIM卡ATR响应数据
-            vm_sim1_dev.Event = SIM_DEV_EVENT.SIM_DEV_EVENT_NONE;
+            vm_sim1_dev.Event = (SIM_DEV_EVENT)VM_EVENT.VM_EVENT_NONE;
             vm_sim1_dev.IsRst = 0;
             vm_sim1_dev.TxBufferIndex = 0;
-            vm_sim1_dev.RxBufferIndex = 0;
+            vm_sim1_dev.RxBufferIndex = 0; 
 
-            uint startAddress = startAddrObj; 
+            // 启动前工作
+            // changeTmp = 1;
+            // uc_mem_write(MTK, SIM1_BASE, &changeTmp, 4);
 
-            // 启动前准备工作
+            // 过寄存器检测
             uint changeTmp = 0x1234;
             uc_mem_write(MTK, 0xA10001D4, ref changeTmp, 4);
 
@@ -2120,6 +2133,13 @@ namespace MT6252_Simulator_Sharp.Simalator
             // 过sub_8703796方法
             unk_data = 2;
             uc_mem_write(MTK, 0x08000AD4, ref unk_data, 2);
+            // 还原Flash数据
+            int flashDataSize = 0;
+            // if (readFile("Rom\\flash.lock", &flashDataSize) && flashDataSize > 0)
+            // {
+            //    char *flashDataTmp = readFile(FLASH_IMG_PATH, &flashDataSize);
+            //    uc_mem_write(MTK,0x8780000, flashDataTmp, size_4mb);
+            // }
 
             try
             {
@@ -2278,6 +2298,19 @@ namespace MT6252_Simulator_Sharp.Simalator
         public static Action<byte[]> UpdateSurfaceAction;
 
         static byte[] screenBuffer = new byte[LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2];
+
+        // RGB565 转 R/G/B 的辅助方法
+        private byte PIXEL565R(ushort color) => (byte)((color >> 11) & 0x1F);
+        private byte PIXEL565G(ushort color) => (byte)((color >> 5) & 0x3F);
+        private byte PIXEL565B(ushort color) => (byte)(color & 0x1F);
+
+        static unsafe  byte[] PointerToByteArray(byte* ptr, int length)
+        {
+            byte[] byteArray = new byte[length];
+            Marshal.Copy((IntPtr)ptr, byteArray, 0, length); // 拷贝数据到托管数组
+            return byteArray;
+        }
+
         public static void RenderGdiBufferToWindow()
         {
             // Get window surface
@@ -2289,65 +2322,70 @@ namespace MT6252_Simulator_Sharp.Simalator
                 using (Bitmap bmp = new Bitmap(LCD_SCREEN_WIDTH, LCD_SCREEN_HEIGHT, PixelFormat.Format32bppArgb))
                 {
                     for (byte li = 0; li < 4; li++)
+                {
+                    uint pz = LCD_Layer_Address[li];
+                    if (pz > 0)
                     {
-                        uint pz = LCD_Layer_Address[li];
-                        if (pz > 0)
-                        {
-                            // Read screen buffer from emulated memory
-                            uc_mem_read(MTK, pz, ref screenBuffer, LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2);
+                        // Read screen buffer from emulated memory
+                        uc_mem_read(MTK, pz, ref screenBuffer, LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2);
 
-                            UpdateSurfaceAction?.Invoke(screenBuffer);
 
-                            //// Lock bitmap data for direct access
-                            //BitmapData bmpData = bmp.LockBits(
-                            //    new Rectangle(0, 0, bmp.Width, bmp.Height),
-                            //    ImageLockMode.WriteOnly,
-                            //    bmp.PixelFormat);
+                        // Lock bitmap data for direct access
+                        BitmapData bmpData = bmp.LockBits(
+                            new Rectangle(0, 0, bmp.Width, bmp.Height),
+                            ImageLockMode.WriteOnly,
+                            bmp.PixelFormat);
 
-                            //unsafe
-                            //{
-                            //    byte* ptr = (byte*)bmpData.Scan0;
+                           
+                        unsafe
+                            {
+                                byte* ptr;
+                                ptr = (byte*)bmpData.Scan0;
 
-                            //    for (ushort i = 0; i < LCD_SCREEN_HEIGHT; i++)
-                            //    {
-                            //        for (ushort j = 0; j < LCD_SCREEN_WIDTH; j++)
-                            //        {
-                            //            pz = (uint)(j + i * LCD_SCREEN_WIDTH);
-                            //            ushort color = BitConverter.ToUInt16(screenBuffer, (int)pz * 2);
+                            for (ushort i = 0; i < LCD_SCREEN_HEIGHT; i++)
+                            {
+                                for (ushort j = 0; j < LCD_SCREEN_WIDTH; j++)
+                                {
+                                    pz = (uint)(j + i * LCD_SCREEN_WIDTH);
+                                    ushort color = BitConverter.ToUInt16(screenBuffer, (int)pz * 2);
 
-                            //            // Convert 565 RGB to 888 RGB
-                            //            byte r = (byte)((color >> 11) & 0x1F);
-                            //            byte g = (byte)((color >> 5) & 0x3F);
-                            //            byte b = (byte)(color & 0x1F);
+                                    // Convert 565 RGB to 888 RGB
+                                    byte r = (byte)((color >> 11) & 0x1F);
+                                    byte g = (byte)((color >> 5) & 0x3F);
+                                    byte b = (byte)(color & 0x1F);
 
-                            //            // Scale to 8-bit
-                            //            r = (byte)(r * 255 / 31);
-                            //            g = (byte)(g * 255 / 63);
-                            //            b = (byte)(b * 255 / 31);
+                                    // Scale to 8-bit
+                                    r = (byte)(r * 255 / 31);
+                                    g = (byte)(g * 255 / 63);
+                                    b = (byte)(b * 255 / 31);
 
-                            //            // Set pixel (BGRA format)
-                            //            int pos = (i * bmpData.Stride) + (j * 4);
-                            //            ptr[pos] = b;     // Blue
-                            //            ptr[pos + 1] = g;  // Green
-                            //            ptr[pos + 2] = r;  // Red
-                            //            ptr[pos + 3] = 255; // Alpha (fully opaque)
-                            //        }
-                            //    }
-                            //} 
-                            //bmp.UnlockBits(bmpData);
+                                    // Set pixel (BGRA format)
+                                    int pos = (i * bmpData.Stride) + (j * 4);
+                                    ptr[pos] = b;     // Blue
+                                    ptr[pos + 1] = g;  // Green
+                                    ptr[pos + 2] = r;  // Red
+                                    ptr[pos + 3] = 255; // Alpha (fully opaque)
+                                }
+                            }
+                                byte[] datas = PointerToByteArray(ptr, LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2);  
+                                bmp.UnlockBits(bmpData); 
+                                UpdateSurfaceAction?.Invoke(datas);
+                            } 
 
                             // Save as PNG
                             //bmp.Save("screen_output.png", ImageFormat.Png); 
                         }
-                    }
                 }
+                 }
 
                 // Update window surface (original SDL rendering)
                 //SDL.SDL_UpdateWindowSurface(window);
 
                 lcdUpdateFlag = false;
             }
-        } 
+        }
+
+
 
         static int debugType = 0;
 
