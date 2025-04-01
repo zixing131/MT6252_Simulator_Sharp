@@ -9,3 +9,4 @@ obj
 bin
 .vs
 *.user
+Rom/fat32.img
