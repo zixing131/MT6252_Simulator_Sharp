@@ -136,7 +136,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         public const uint DMA_MSDC_DATA_ADDR_REG = 0x8102002C + DMA_MSDC_CHANNEL;
         public const uint DMA_MSDC_TRANSFER_COUNT_REG = 0x81020010 + DMA_MSDC_CHANNEL;
 
-        public const long DMA_MSDC_CONTROL_REG = 0x81020014 + DMA_MSDC_CHANNEL;
+        public const uint DMA_MSDC_CONTROL_REG = 0x81020014 + DMA_MSDC_CHANNEL;
         public const uint DMA_MSDC_START_REG =0x81020018 + DMA_MSDC_CHANNEL;
         public const uint DMA_MSDC_INTSTA_REG =0x8102001C + DMA_MSDC_CHANNEL;
 
@@ -341,17 +341,16 @@ namespace MT6252_Simulator_Sharp.Simalator
         static uint IRQ_MASK_SET_L_Data = 0;
 
 
-        static uint[ , ] isrStackList = new uint[10, 17];
-        static uint[] stackCallback = new uint[17];
+        unsafe static uint** isrStackList = (uint**) Marshal.AllocHGlobal(10 * sizeof(uint*));
+        unsafe static uint* stackCallback = (uint*)Marshal.AllocHGlobal(17 * sizeof(uint));
 
-        
-        private static uint[] getRowOfArray(uint[,] array,uint rowIndexUint)
-        {
-            int rowIndex = (int)rowIndexUint;
-            uint[] row = new uint[17]; // 存储提取的行
-            Buffer.BlockCopy(array, rowIndex * 17 * sizeof(uint), row, 0, 17 * sizeof(uint));
-            return row;
-        }
+        //private static uint[] getRowOfArray(uint[,] array,uint rowIndexUint)
+        //{
+        //    int rowIndex = (int)rowIndexUint;
+        //    uint[] row = new uint[17]; // 存储提取的行
+        //    Buffer.BlockCopy(array, rowIndex * 17 * sizeof(uint), row, 0, 17 * sizeof(uint));
+        //    return row;
+        //}
 
         // Instance of the struct
         public static SerialFlash_Control SF_C_Frame = new SerialFlash_Control
@@ -363,42 +362,42 @@ namespace MT6252_Simulator_Sharp.Simalator
             sendDataCount = 0,
             readDataCount = 0,
             cacheData = new uint[64]
-        };
+        }; 
 
-        static IntPtr ArrToPtr(byte[] array)
-        {
-            // 固定托管内存（避免 GC 移动）
-            GCHandle handle = GCHandle.Alloc(array, GCHandleType.Pinned);
-           // try
-            //{
-                IntPtr ptr = handle.AddrOfPinnedObject();
-                // 现在 ptr 可以安全传递到非托管代码
-                // NativeMethod(ptr, byteArray.Length);
-                return ptr;
-            //}
-            //finally
-            //{
-            //    // 必须手动释放 GCHandle
-            //    if (handle.IsAllocated)
-            //        handle.Free();
-            //}
+        //static IntPtr ArrToPtr(byte[] array)
+        //{
+        //    // 固定托管内存（避免 GC 移动）
+        //    GCHandle handle = GCHandle.Alloc(array, GCHandleType.Pinned);
+        //   // try
+        //    //{
+        //        IntPtr ptr = handle.AddrOfPinnedObject();
+        //        // 现在 ptr 可以安全传递到非托管代码
+        //        // NativeMethod(ptr, byteArray.Length);
+        //        return ptr;
+        //    //}
+        //    //finally
+        //    //{
+        //    //    // 必须手动释放 GCHandle
+        //    //    if (handle.IsAllocated)
+        //    //        handle.Free();
+        //    //}
 
-            // return System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(array, 0);
-        }
+        //    // return System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(array, 0);
+        //}
 
         public static IntPtr malloc(int size)
         {
-            //        return IntPtr.Zero;
-            return ArrToPtr(new byte[size]);
+            return IntPtr.Zero;
+            // return ArrToPtr(new byte[size]);
         }
 
         //初始MTK引擎
         public static Unicorn MTK = null;
 
-        public static void uc_mem_map_ptr(Unicorn mtk, long address, int size, int perms, IntPtr ptr)
+        public static void uc_mem_map_ptr(Unicorn mtk, uint address, int size, int perms, IntPtr ptr)
         {
-            // mtk.MemMap(address, size, perms);
-             mtk.MemMapPtr(address, size, perms, ptr);
+            mtk.MemMap(address, size, perms);
+            //  mtk.MemMapPtr(address, size, perms, ptr);
         }
 
         public static VM_SIM_DEV vm_sim1_dev = new VM_SIM_DEV(true);
@@ -408,12 +407,34 @@ namespace MT6252_Simulator_Sharp.Simalator
         public static VM_DMA_CONFIG vm_dma_sim1_config = new VM_DMA_CONFIG(true);
         public static VM_DMA_CONFIG vm_dma_sim2_config = new VM_DMA_CONFIG(true);
 
+        private unsafe static void initData()
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                // 为每个 uint* 分配 17 个 uint 的空间
+                isrStackList[i] = (uint*)Marshal.AllocHGlobal(17 * sizeof(uint));
+
+                // 初始化为 0
+                for (int j = 0; j < 17; j++)
+                {
+                    isrStackList[i][j] = 0;
+                }
+            }
+
+            // 初始化为0
+            for (int i = 0; i < 17; i++)
+            {
+                stackCallback[i] = 0;
+            }
+        }
 
         /// <summary>
         /// 初始化模拟CPU引擎与内存
         /// </summary>
         public static void initMtkSimalator()
         {
+            initData();
+
             MTK = new Unicorn(UnicornEngine.Const.Common.UC_ARCH_ARM , UnicornEngine.Const.Common.UC_MODE_ARM);
             ROM_MEMPOOL = malloc(size_16mb);
             RAM_MEMPOOL = malloc(size_8mb);
@@ -484,32 +505,32 @@ namespace MT6252_Simulator_Sharp.Simalator
         private static void hookRamCallBack(Unicorn uc, long address, int size, long value, object userData)
         {
 
-            hookRamCallBack(uc, 1, address, size, value, userData);
+            hookRamCallBack(uc, 1, (uint)address, size, (uint)value, userData);
         }
 
         private static void hookRamCallBack(Unicorn uc, long address, int size, object userData)
         {
-            hookRamCallBack(uc, 16, address, size, 0, userData);
+            hookRamCallBack(uc, 16, (uint)address, size, 0, userData);
         }
 
-        static long lastAddress = 0;
+        static uint lastAddress = 0;
 
-        private static void hookRamCallBack(Unicorn uc, int type, long address, int size, long value, object userData)
+        private static void hookRamCallBack(Unicorn uc, int type, uint address, int size, uint value, object userData)
         {
             //Console.WriteLine($"hookRamCallBack address = ({address:X})");
             int data = (int)userData;  
 
             // Merge images: smaller layer numbers are lower layers, larger are upper layers
-            switch (address)
+            switch ((uint)address)
             {
                 case SIM1_CARD_TYPE_REG:
                     changeTmp1 = 0x20;
-                    uc.MemWrite(address, Uint2Bytes(changeTmp1).Take(1).ToArray());
+                    uc.MemWrite(address, Uint2Bytes(changeTmp1, 1));
                     Console.WriteLine($"read sim1_card_type({lastAddress:x})");
                     break;
                 case SIM2_CARD_TYPE_REG:
                     changeTmp1 = 0x20;
-                    uc.MemWrite(address, Uint2Bytes(changeTmp1).Take(1).ToArray());
+                    uc.MemWrite(address, Uint2Bytes(changeTmp1, 1));
                     Console.WriteLine($"read sim2_card_type({lastAddress:x})");
                     break;
                 case SIM1_TIDE:
@@ -590,7 +611,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                         vm_dma_msdc_config.Control = (uint)value;
                         vm_dma_msdc_config.Chanel = (DMA_MASTER_CHANEL)(byte)((value >> 20) & 31);
                         vm_dma_msdc_config.Direction = (DMA_DATA_DIRECTION)(byte)((value >> 18) & 1);
-                        vm_dma_msdc_config.Align = (DMA_DATA_BYTE_ALIGN)(byte)(value & 0b11);
+                        vm_dma_msdc_config.Align = (DMA_DATA_BYTE_ALIGN)(byte)(value & 3);
                         vm_dma_msdc_config.TransferEndInterruptEnable = (byte)((value >> 15) & 1);
                     }
                     break;
@@ -600,7 +621,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                         vm_dma_sim1_config.Control = (uint)value;
                         vm_dma_sim1_config.Chanel = (DMA_MASTER_CHANEL)(byte)((value >> 20) & 31);
                         vm_dma_sim1_config.Direction = (DMA_DATA_DIRECTION)(byte)((value >> 18) & 1);
-                        vm_dma_sim1_config.Align = (DMA_DATA_BYTE_ALIGN)(byte)(value & 0b11);
+                        vm_dma_sim1_config.Align = (DMA_DATA_BYTE_ALIGN)(byte)(value & 3);
                         vm_dma_sim1_config.TransferEndInterruptEnable = (byte)((value >> 15) & 1);
                     }
                     break;
@@ -610,7 +631,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                         vm_dma_sim2_config.Control = (uint)value;
                         vm_dma_sim2_config.Chanel = (DMA_MASTER_CHANEL)(byte)((value >> 20) & 31);
                         vm_dma_sim2_config.Direction = (DMA_DATA_DIRECTION)(byte)((value >> 18) & 1);
-                        vm_dma_sim2_config.Align = (DMA_DATA_BYTE_ALIGN)(byte)(value & 0b11);
+                        vm_dma_sim2_config.Align = (DMA_DATA_BYTE_ALIGN)(byte)(value & 3);
                         vm_dma_sim2_config.TransferEndInterruptEnable = (byte)((value >> 15) & 1);
                     }
                     break;
@@ -706,60 +727,93 @@ namespace MT6252_Simulator_Sharp.Simalator
                      
                     }
                     break;
-                case 0x810C0090: // Read register, return 0x10
+                case 0x810C0090: // 读寄存器，返回0x10过sub_8122d8c的while
                     if (data == 0)
                     {
                         changeTmp = 0x10;
                         uc.MemWrite(address, Uint2Bytes(changeTmp));
                     }
                     break;
-                case SD_CMD_STAT_REG: // Read SD command status register
+                case SD_CMD_STAT_REG: // 读取SD 命令状态寄存器
                     changeTmp = 1;
-                    uc.MemWrite(address, Uint2Bytes(changeTmp));
+                    uc.MemWrite(address, Uint2Bytes(changeTmp));// 写1表示命令回复成功 2超时 4crc校验错误
                     break;
                 case SD_DATA_RESP_REG0:
+                    // SD 命令响应数据寄存器 r0,r1,r2,r3每个寄存器占用4字节
                     switch (MSDC_CMD_CACHE)
                     {
-                        case SDC_CMD_CMD0:
+                        case SDC_CMD_CMD0:// 进入SPI模式
+                            Console.WriteLine($"SD卡 进入SPI模式");
                             break;
                         case SDC_CMD_CMD1:
                             break;
                         case SDC_CMD_CMD2:
+                            // 用于请求 SD 卡返回 CID (Card Identification Number)数据(128位响应)
+                            // printf("SD卡 获取CID寄存器(%x)\n", SEND_SDDATA_CACHE); 
+                            Console.WriteLine($"SD卡 获取CID寄存器");
                             changeTmp1 = 0xF016C1C4;
                             uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD7:
+                            // 用于选择或取消选择一张 SD 卡
+                            Console.WriteLine($"取消或选择SD卡");
                             break;
                         case SDC_CMD_CMD8:
+                            //询问SD卡的版本号和电压范围
                             changeTmp1 = 0x1aa;
                             uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD9:
-                            changeTmp1 = 0x0000e004;
+                            // 获取SD卡的CSD寄存器（Card-Specific Data Register）(128位响应)
+                            // printf("SD卡 获取CSD寄存器(%x)\n", SEND_SDDATA_CACHE);
+                            Console.WriteLine($"SD卡 获取CSD寄存器");
+                            //  changeTmp1 = 0x400E0032;//原始数据
+                            changeTmp1 = 0x0000e004;// int*转换到char*
                             uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD55:
+                            //用于通知SD卡，下一个命令将是应用命令（ACMD）
+                            Console.WriteLine("SD卡ACMD模式开启");
                             changeTmp1 = 0x20;
                             uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD41_SD:
-                            changeTmp1 = 0x80FF8000;
+                            // 初始化SD命令
+                            Console.WriteLine("初始化SD卡"); 
+                            //  bit 31 = 1：卡已经准备好，可以进行后续操作。
+                            //  bit 30 = 0：该卡为标准容量卡 SDSC，不是 SDHC/SDXC 高容量卡。
+                            //  bit 23-15 = 0xFF：卡支持的电压范围是 2.7V到3.6V。
+                            changeTmp1 = 0x80FF8000; // 普通容量SD卡
                             uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD3_SD:
+                            // SEND_RELATIVE_ADDR (RCA)在 SD 卡的初始化过程中为卡分配一个相对地址
+                            // printf("SD卡 分配相对地址(%x)\n", SEND_SDDATA_CACHE); 
+                            Console.WriteLine("SD卡 分配相对地址");
                             changeTmp1 = 0x3001;
                             uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD12:
+                            // 结束连续多数据块传输
+                            // printf("结束SD卡连续读\n");
+                            Console.WriteLine("结束SD卡连续读");
                             break;
                         case SDC_CMD_CMD13:
+                            // 查询 SD 卡的状态，并返回卡的当前状态信息 
+                            //Console.WriteLine("SD卡 查询SD卡状态");
+                            // printf("SD卡 查询SD卡状态(%x)\n", SEND_SDDATA_CACHE);
+                            // 0x100 = R1_READY_FOR_DATA_8
                             changeTmp1 = 0x100;
                             uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD16:
+                            // 该命令用于设置数据块的长度
+                            Console.WriteLine("SD卡 设置SD数据块长度");
+                            // printf("SD卡 设置SD数据块长度(%x)\n", SEND_SDDATA_CACHE);
+                            // DMA_Transfer_Bytes_Count = SEND_SDDATA_CACHE;
                             break;
-                        case SDC_CMD_CMD17:
-                        case SDC_CMD_CMD18:
+                        case SDC_CMD_CMD17:// 读取多个数据块
+                        case SDC_CMD_CMD18:// 读取单个数据块
                             if (vm_dma_msdc_config.ConfigFinish == 1)
                             {
                                 byte[] dataCachePtr = readSDFile(MSDC_DATA_ADDR, vm_dma_msdc_config.TransferCount);
@@ -767,7 +821,12 @@ namespace MT6252_Simulator_Sharp.Simalator
                                 {
                                     uc.MemWrite(vm_dma_msdc_config.DataAddr, dataCachePtr);
                                 }
-                                vm_dma_msdc_config.ConfigFinish = 0;
+                                else
+                                {
+                                    Console.WriteLine("SD卡 读取数据为null"); 
+                                }
+                                // msdc dma传输完成
+                                    vm_dma_msdc_config.ConfigFinish = 0;
                                 changeTmp = 0x8000;
                                 uc.MemWrite(SDC_DATSTA_REG, Uint2Bytes(changeTmp));
                                 if (vm_dma_msdc_config.TransferEndInterruptEnable == 1)
@@ -777,8 +836,8 @@ namespace MT6252_Simulator_Sharp.Simalator
                                 }
                             }
                             break;
-                        case SDC_CMD_CMD24:
-                        case SDC_CMD_CMD25:
+                        case SDC_CMD_CMD24://写多个数据块
+                        case SDC_CMD_CMD25://写单个数据块
                             if (vm_dma_msdc_config.ConfigFinish == 1)
                             {
                                 vm_dma_msdc_config.ConfigFinish = 0;
@@ -795,8 +854,22 @@ namespace MT6252_Simulator_Sharp.Simalator
                             }
                             break;
                         case SDC_CMD_ACMD42:
+                            // 卡检测信号通常用于检测 SD 卡是否插入或取出
+                            // printf("SD卡 检查是否插入或取出(%x)\n", SEND_SDDATA_CACHE);
+                            Console.WriteLine("SD卡 检查是否插入或取出");
                             break;
                         case SDC_CMD_ACMD51:
+                            // 请求 SD 卡返回其 SCR (SD Card Configuration Register)寄存器
+                            // printf("SD卡 读取SCR寄存器(%x)\n", SEND_SDCMD_CACHE);
+                            Console.WriteLine("SD卡 读取SCR寄存器");
+                            break;
+                        default:
+
+                            Console.WriteLine($"未处理SD_DATA_RESP_REG_0{MSDC_CMD_CACHE:x}");
+                            Console.WriteLine($"lastAddress{lastAddress:x}");
+
+                            // printf("未处理SD_DATA_RESP_REG_0(%x,CMD:%x)", SEND_SDDATA_CACHE, SEND_SDCMD_CACHE);
+                            // printf("(%x)\n", lastAddress);
                             break;
                     }
                     break;
@@ -810,6 +883,10 @@ namespace MT6252_Simulator_Sharp.Simalator
                         case SDC_CMD_CMD9:
                             changeTmp1 = 0x000ff577;
                             uc.MemWrite(SD_DATA_RESP_REG1, Uint2Bytes(changeTmp1));
+                            break;
+                        default:
+                            // printf("未处理SD_DATA_RESP_REG_1(CMD:%x)", SEND_SDCMD_CACHE);
+                            // printf("(%x)\n", lastAddress);
                             break;
                     }
                     break;
@@ -825,6 +902,10 @@ namespace MT6252_Simulator_Sharp.Simalator
                             uc.MemWrite(SD_DATA_RESP_REG2, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD17:
+                            break;  
+                        default:
+                            // printf("未处理SD_DATA_RESP_REG_2(CMD:%x)", SEND_SDCMD_CACHE);
+                            // printf("(%x)\n", lastAddress);
                             break;
                     }
                     break;
@@ -842,6 +923,10 @@ namespace MT6252_Simulator_Sharp.Simalator
                         case SDC_CMD_ACMD51:
                             changeTmp1 = 0;
                             uc.MemWrite(SD_DATA_RESP_REG3, Uint2Bytes(changeTmp1));
+                            break;
+                        default:
+                            // printf("未处理SD_DATA_RESP_REG_3(CMD:%x)", SEND_SDCMD_CACHE);
+                            //  printf("(%x)\n", lastAddress);
                             break;
                     }
                     break;
@@ -865,6 +950,10 @@ namespace MT6252_Simulator_Sharp.Simalator
                         case SDC_CMD_CMD24:
                             break;
                         case SDC_CMD_ACMD42:
+                            break;
+                        default:
+                            // printf("未处理SD_DATA_RESP_REG_0(ACMD:%x)", SEND_SDCMD_CACHE);
+                            //  printf("(%x)\n", lastAddress);
                             break;
                     }
                     break;
@@ -926,6 +1015,10 @@ namespace MT6252_Simulator_Sharp.Simalator
                             break;
                         case 0x40000000:
                             break;
+                        default:
+                            // printf("未处理SD_DATA_RESP_REG_2(ACMD:%x)", SEND_SDCMD_CACHE);
+                            //  printf("(%x)\n", lastAddress);
+                            break;
                     }
                     break;
                 case SD_CMD_RESP_REG3:
@@ -936,6 +1029,10 @@ namespace MT6252_Simulator_Sharp.Simalator
                             uc.MemWrite(SD_CMD_RESP_REG3, Uint2Bytes(changeTmp1));
                             break;
                         case 0x8b3:
+                            break;
+                        default:
+                            // printf("未处理SD_DATA_RESP_REG_3(ACMD:%x)", SEND_SDCMD_CACHE);
+                            // printf("(%x)\n", lastAddress);
                             break;
                     }
                     break;
@@ -999,7 +1096,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                         {
                             changeTmp1 = SF_C_Frame.cacheData[0];
                             SF_C_Frame.cmd = (byte)(changeTmp1 & 0xff);
-                            SF_C_Frame.address = (changeTmp1 >> 24) | (((changeTmp1 >> 16) & 0xff) << 8) | (((changeTmp1 >> 8) & 0xff) << 16);
+                            SF_C_Frame.address = (uint)((changeTmp1 >> 24) | (((changeTmp1 >> 16) & 0xff) << 8) | (((changeTmp1 >> 8) & 0xff) << 16));
                             switch (SF_C_Frame.cmd)
                             {
                                 case 0x2:
@@ -1041,6 +1138,9 @@ namespace MT6252_Simulator_Sharp.Simalator
                                     break;
                                 case 0xc0:
                                     break;
+                                default:
+                                    // printf("unhandle flash cmd[%x]\n", SF_C_Frame.cmd);
+                                    break;
                             }
                             SF_C_Frame.cmdRev = 0;
                             SF_C_Frame.cmd = 0;
@@ -1054,14 +1154,48 @@ namespace MT6252_Simulator_Sharp.Simalator
                     {
                         if (data == 1)
                         {
-                            int off = (int)(address - RW_SFI_GPRAM_DATA_REG) / 4;
+                            uint off = (uint)(address - RW_SFI_GPRAM_DATA_REG);
+                            off /= 4;
                             SF_C_Frame.cacheData[off] = (uint)value;
                         }
                     }
+                    /*
+                      // 声音相关寄存器
+                      if (address >= 0x83000000 && address <= 0x84000000)
+                      {
+                          if (data == 1)
+                          {
+                              printf("[Sound]%x", address);
+                              printf(" %x\n", value);
+                          }
+                      }*/
+                                    /*
+                                    if (data == 2)
+                                    {
+                                        sprintf(globalSprintfBuff, "address (%x) is unmapping", address);
+                                        confirm("memory read error", globalSprintfBuff);
+                                    }
+                                    else if (data == 3)
+                                    {
+                                        sprintf(globalSprintfBuff, "address(%x) is unmapping", address);
+                                        confirm("memory write error", globalSprintfBuff);
+                                    }
+                                    else if (data == 4)
+                                    {
+                                        sprintf(globalSprintfBuff, "address (%x),code is %d", address, data);
+                                        confirm("error memory operation", globalSprintfBuff);
+                                    }*/
                     break;
             }
+            /*
+              if (address == 0x4b000 && data == 1)
+              {
+                  printf("la======%x====", lastAddress);
+                  address=0;
+              }*/
+
         }
-         
+
         private static void confirm(string title, string message)
         {
             MessageBox.Show(message, title);
@@ -1070,6 +1204,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         public static FileStream SD_File_Handle = null;
         static bool writeSDFile(byte[] Buffer, uint startPos, uint size)
         {
+            //Console.WriteLine("writeSDFile");
             byte flag;
             if (SD_File_Handle == null)
             {
@@ -1104,14 +1239,18 @@ namespace MT6252_Simulator_Sharp.Simalator
         /// <param name="r0">R0寄存器参数值</param>
         static void StartCallback(uint callbackFuncAddr, uint r0)
         {
+            Console.WriteLine("StartCallback");
             uint backAddr = 0;
             uint lr = CPU_ISR_CB_ADDRESS + 8;
 
             // 读取当前PC值
-            uc_reg_read(MTK, Arm.UC_ARM_REG_PC, ref backAddr);
+            uc_reg_readRef(MTK, Arm.UC_ARM_REG_PC, ref backAddr);
 
             // 保存CPU上下文
-            SaveCpuContext(stackCallback, backAddr);
+            unsafe
+            {
+                SaveCpuContext(ref stackCallback, backAddr);
+            }
 
             // 设置寄存器值开始回调
             uc_reg_write(MTK, Arm.UC_ARM_REG_R0, r0);
@@ -1123,13 +1262,15 @@ namespace MT6252_Simulator_Sharp.Simalator
         {
             uc.RegWrite(reg, Uint2Bytes(data));
 
-        } 
+        }
 
-        static void uc_reg_read(Unicorn uc, int reg,ref uint data)
+        static void uc_reg_readRef(Unicorn uc, int reg,ref uint data)
         {
-            byte[] tmpdata = new byte[4];
-            uc.RegRead(reg, tmpdata);
-            data = Bytes2Uint(tmpdata);
+            //byte[] tmpdata = new byte[4];
+            //uc_reg_read(reg, tmpdata);
+            //data = Bytes2Uint(tmpdata);
+
+            data = uc_reg_read(reg);
 
         }
         /// <summary>
@@ -1137,6 +1278,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         /// </summary>
         private static byte[] readSDFile(uint startPos, uint size)
         {
+            //Console.WriteLine("readSDFile");
             if (SD_File_Handle == null)
             {
                 return null;
@@ -1176,7 +1318,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         /// <param name="sim_num">SIM卡编号(0/1)</param>
         /// <param name="isWrite">读写标志(0=读,1=写)</param>
         /// <param name="value">写入的值</param>
-        static void SIM_DATA_HANDLE(ref VM_SIM_DEV sim_dev, byte sim_num, byte isWrite, long value)
+        static void SIM_DATA_HANDLE(ref VM_SIM_DEV sim_dev, byte sim_num, byte isWrite, uint value)
         {
             if (isWrite == 0) // 读操作
             {
@@ -1210,7 +1352,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         /// <param name="sim_dev">SIM设备结构体</param>
         /// <param name="sim_num">SIM卡编号(0/1)</param>
         /// <param name="value">控制值</param>
-        static void SIM_BASE_HANDLE(ref VM_SIM_DEV sim_dev, byte sim_num, long value)
+        static void SIM_BASE_HANDLE(ref VM_SIM_DEV sim_dev, byte sim_num, uint value)
         {
             sim_dev.Control = (uint)value;  // 显式转换为uint以匹配原u32类型
             Console.WriteLine($"[sim{sim_num}] control({value:X8})");
@@ -1222,7 +1364,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         /// <param name="sim_dev">SIM设备结构体</param>
         /// <param name="sim_num">SIM卡编号(0/1)</param>
         /// <param name="value">中断使能值</param>
-        static void SIM_IRQ_HANDLE(ref VM_SIM_DEV sim_dev, byte sim_num, long value)
+        static void SIM_IRQ_HANDLE(ref VM_SIM_DEV sim_dev, byte sim_num, uint value)
         {
             sim_dev.IrqEnable = (uint)value;
 
@@ -1258,7 +1400,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         /// <param name="sim_dev">SIM设备结构体</param>
         /// <param name="sim_num">SIM卡编号(0/1)</param>
         /// <param name="value">配置值</param>
-        static void SIM_TIDE_HANDLE(ref VM_SIM_DEV sim_dev, byte sim_num, long value)
+        static void SIM_TIDE_HANDLE(ref VM_SIM_DEV sim_dev, byte sim_num, uint value)
         {
             // 设置触发计数
             sim_dev.RxTriggerCount = (uint)(value & 0xF) + 1;
@@ -1321,50 +1463,177 @@ namespace MT6252_Simulator_Sharp.Simalator
             }
         }
 
-        private static byte[] Uints2Bytes(uint[] uintArray)
-        { 
-            byte[] byteArray = new byte[uintArray.Length * sizeof(uint)]; 
-            Buffer.BlockCopy(uintArray, 0, byteArray, 0, byteArray.Length);
+        //private static byte[] Uints2Bytes(uint[] uintArray)
+        //{
+        //    byte[] byteArray = new byte[uintArray.Length * sizeof(uint)];
+        //    Buffer.BlockCopy(uintArray, 0, byteArray, 0, byteArray.Length);
+        //    return byteArray;
+        //}
+        //private static byte[] Uint2Bytes(uint uintdata)
+        //{
+        //    return Uints2Bytes(new uint[] { uintdata });
+        //}
+        //private static uint[] Bytes2Uints(byte[] byteArray)
+        //{
+        //    // 检查字节数组长度是否合法（必须是 4 的倍数，因为 1 uint = 4 bytes）
+        //    if (byteArray.Length % sizeof(uint) != 0)
+        //    {
+        //        throw new ArgumentException("字节数组长度必须是 4 的倍数", nameof(byteArray));
+        //    }
+
+        //    uint[] uintArray = new uint[byteArray.Length / sizeof(uint)];
+        //    Buffer.BlockCopy(byteArray, 0, uintArray, 0, byteArray.Length);
+        //    return uintArray;
+        //}
+
+        //private static uint Bytes2Uint(byte[] byteArray)
+        //{
+        //    if (byteArray.Length != 4)
+        //    {
+        //        throw new ArgumentException("字节数组长度必须是 4 ", nameof(byteArray));
+        //    }
+        //    uint[] ret = Bytes2Uints(byteArray);
+        //    return ret[0];
+        //}
+
+        public unsafe static byte[] Uints2Bytes(uint[] uintArray)
+        {
+            byte[] byteArray = new byte[uintArray.Length * sizeof(uint)];
+
+            // 固定 byte[] 和 uint[] 内存，防止 GC 移动
+            fixed (byte* pBytes = byteArray)
+            fixed (uint* pUints = uintArray)
+            {
+                // 直接复制内存（避免 Buffer.BlockCopy 的额外开销）
+                Buffer.MemoryCopy(
+                    pUints,         // 源指针（uint[]）
+                    pBytes,         // 目标指针（byte[]）
+                    byteArray.Length, // 目标字节数
+                    byteArray.Length  // 要复制的字节数
+                );
+            }
+            return byteArray;
+        }
+        public unsafe static byte[] Uint2Bytes(uint uintdata,int size = 4,int start =  0)
+        {
+            byte[] byteArray = new byte[size];
+
+            // 固定 byte[] 内存，防止 GC 移动
+            fixed (byte* pBytes = byteArray)
+            {
+                // 直接复制 uint 的内存到 byte[]
+                *(uint*)pBytes = uintdata;
+            }
+
             return byteArray;
         }
 
-        private static byte[] Uint2Bytes(uint uintdata)
+
+        public unsafe static byte[] Uint2Bytes(long uintdata)
         {
-            return Uints2Bytes(new uint[] { uintdata });
+            byte[] byteArray = new byte[sizeof(uint)];
+
+            // 固定 byte[] 内存，防止 GC 移动
+            fixed (byte* pBytes = byteArray)
+            {
+                // 直接复制 uint 的内存到 byte[]
+                *(long*)pBytes = uintdata;
+            }
+
+            return byteArray;
         }
 
-        private static uint[] Bytes2Uints(byte[] byteArray)
+
+        public unsafe static byte[] Uint2BytesRef(ref uint uintdata)
         {
-            // 检查字节数组长度是否合法（必须是 4 的倍数，因为 1 uint = 4 bytes）
+            byte[] byteArray = new byte[sizeof(uint)];
+
+            // 固定 byte[] 内存，防止 GC 移动
+            fixed (byte* pBytes = byteArray)
+            {
+                // 直接复制 uint 的内存到 byte[]
+                *(uint*)pBytes = uintdata;
+            }
+
+            return byteArray;
+        }
+
+        public unsafe static byte[] int2BytesRef(ref int uintdata)
+        {
+            byte[] byteArray = new byte[sizeof(uint)];
+
+            // 固定 byte[] 内存，防止 GC 移动
+            fixed (byte* pBytes = byteArray)
+            {
+                // 直接复制 uint 的内存到 byte[]
+                *(int*)pBytes = uintdata;
+            }
+
+            return byteArray;
+        }
+        public unsafe static byte[] int2BytesRef(ref uint uintdata)
+        {
+            byte[] byteArray = new byte[sizeof(long)];
+
+            // 固定 byte[] 内存，防止 GC 移动
+            fixed (byte* pBytes = byteArray)
+            {
+                // 直接复制 uint 的内存到 byte[]
+                *(long*)pBytes = uintdata;
+            }
+
+            return byteArray;
+        }
+
+
+        /// <summary>
+        /// 直接共享内存
+        /// </summary>
+        /// <param name="byteArray"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentException"></exception>
+        public unsafe static uint[] Bytes2Uints(byte[] byteArray)
+        {
             if (byteArray.Length % sizeof(uint) != 0)
             {
                 throw new ArgumentException("字节数组长度必须是 4 的倍数", nameof(byteArray));
             }
 
-            uint[] uintArray = new uint[byteArray.Length / sizeof(uint)];
-            Buffer.BlockCopy(byteArray, 0, uintArray, 0, byteArray.Length);
-            return uintArray;
-        }
-
-
-        private static uint Bytes2Uint(byte[] byteArray)
-        {
-            if (byteArray.Length !=4)
+            fixed (byte* pBytes = byteArray)
             {
-                throw new ArgumentException("字节数组长度必须是 4 ", nameof(byteArray));
+                uint* pUints = (uint*)pBytes;
+                // 创建一个新的 uint[]，但直接指向 byte[] 的内存（危险！）
+                uint[] uintArray = new uint[byteArray.Length / sizeof(uint)];
+                for (int i = 0; i < uintArray.Length; i++)
+                {
+                    uintArray[i] = pUints[i];
+                }
+                return uintArray;
             }
-            uint[] ret = Bytes2Uints(byteArray);
-            return ret[0];
         }
 
-        private static void hookCodeCallBack(Unicorn uc, long address, int size, object userData)
+
+        public unsafe static uint Bytes2Uint(byte[] byteArray)
         {
-            long changeTmp1 = 0;
-            long changeTmp = 0;
-            byte changeTmp2 = 0;
+            if (byteArray.Length != sizeof(uint))
+            {
+                throw new ArgumentException("字节数组长度必须是 4", nameof(byteArray));
+            }
+            fixed (byte* pBytes = byteArray)
+            {
+                // 直接读取 byte[] 的内存作为 uint
+                return *(uint*)pBytes;
+            }
+        }
+
+
+
+        private static void hookCodeCallBack(Unicorn uc, long addresslong, int size, object userData)
+        {
+            uint address = (uint)addresslong;
             byte[] globalSprintfBuff = new byte[128];
 
-            long lastSIM_DMA_ADDR = 0;
+            uint lastSIM_DMA_ADDR = 0;
 
             //Console.WriteLine($"address = ({address:X})");
             bool isdef = false;
@@ -1376,23 +1645,23 @@ namespace MT6252_Simulator_Sharp.Simalator
                     break;
 
                 case 0x81b38d0:
-                    changeTmp1 = uc.RegRead(Arm.UC_ARM_REG_R1);
+                    changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R1);
                     Console.WriteLine($"l1audio_sethandler({changeTmp1:x})");
                     break;
 
                 case 0x8087256:
-                    changeTmp1 = uc.RegRead(Arm.UC_ARM_REG_R0);
+                    changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R0);
                     Console.WriteLine($"sim_check_status v26({changeTmp1:x})");
                     break;
 
                 case 0x80D2EE0:
-                    changeTmp1 = uc.RegRead(Arm.UC_ARM_REG_R2);
+                    changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R2);
                     lastSIM_DMA_ADDR = changeTmp1;
                     Console.WriteLine($"SIM_CMD(r0,r1,rx_result:{changeTmp1:x})");
                     break;
 
                 case 0x819f5b4:
-                    changeTmp1 = uc.RegRead(Arm.UC_ARM_REG_R0);
+                    changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R0);
                     uc.MemRead(changeTmp1, globalSprintfBuff);
                     byte[] buftemp = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
                     Console.WriteLine($"kal_debug_print({System.Text.Encoding.UTF8.GetString(buftemp)})({lastAddress:x})");
@@ -1405,7 +1674,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                     break;
 
                 case 0x81a4d54:
-                    changeTmp1 = uc.RegRead(Arm.UC_ARM_REG_R0);
+                    changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R0);
                     uc.MemRead(changeTmp1, globalSprintfBuff); 
                     byte[] buftemp3 = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
                     Console.WriteLine($"dbg_print({System.Text.Encoding.UTF8.GetString(buftemp3)})[{lastAddress:X}]");
@@ -1424,8 +1693,8 @@ namespace MT6252_Simulator_Sharp.Simalator
 
                 case 0x80E7482:
                     // 强制过 nvram_util_caculate_checksum检测
-                    changeTmp = uc.RegRead(Arm.UC_ARM_REG_R0);
-                    changeTmp1 = uc.RegRead(Arm.UC_ARM_REG_R2);
+                    changeTmp = uc_reg_read(Arm.UC_ARM_REG_R0);
+                    changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R2);
                     uc.RegWrite(Arm.UC_ARM_REG_R2, changeTmp);
                     break;
 
@@ -1436,17 +1705,17 @@ namespace MT6252_Simulator_Sharp.Simalator
 
                 case 0x80D2CA4:
                     // 过sub_80D2CA4
-                    changeTmp = uc.RegRead(Arm.UC_ARM_REG_R5);
+                    changeTmp = uc_reg_read(Arm.UC_ARM_REG_R5);
                     changeTmp2 = 0xff;
-                    uc.MemWrite(changeTmp + 3, Uint2Bytes(changeTmp2).Take(1).ToArray());
+                    uc.MemWrite(changeTmp + 3, Uint2Bytes(changeTmp2,1));
                     break;
 
                 case 0x80601ec:
                 case 0x80601ac: // 过sub_8060194的while(L1D_WIN_Init_SetCommonEvent)
-                    changeTmp = uc.RegRead(Arm.UC_ARM_REG_R0); 
-                    //Console.WriteLine($"0x80601ac = ({changeTmp:x})");
+                    changeTmp = uc_reg_read(Arm.UC_ARM_REG_R0); 
+                    Console.WriteLine($"0x80601ac = ({changeTmp:x})");
 
-                    uc.MemWrite(TMDA_BASE, Uint2Bytes((uint)changeTmp));
+                    uc.MemWrite(TMDA_BASE, Uint2Bytes(changeTmp,4));
                     break;
 
                 case 0x8223F66: //过sub_8223f5c(L1层的) 暂时去不掉
@@ -1457,8 +1726,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                 case 0x800DA28: // 暂时去不掉
                     changeTmp = 0;
                     uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp);
-                    Console.WriteLine($"0x800DA28({changeTmp:x})");
-
+                    Console.WriteLine($"0x800DA28({changeTmp:x})"); 
                     break;
 
                 default:
@@ -1474,20 +1742,26 @@ namespace MT6252_Simulator_Sharp.Simalator
             //    Console.WriteLine($"address({address:x})");
             //}
 
-            if(address== 0x8002e38)
-            {
-                Console.WriteLine($"address({address:x})");
-            }
-            if (address == 0x81b466c)
-            {
-                Console.WriteLine($"address({address:x})");
-            }
+            //if(address== 0x8002e38)
+            //{
+            //    Console.WriteLine($"address({address:x})");
+            //}
+            //if (address == 0x81b466c)
+            //{
+            //    Console.WriteLine($"address({address:x})");
+            //}
 
             lastAddress = address;
         }
 
-        private static void hookBlockCallBack(Unicorn uc, long address, int size, object user_data)
+        private static uint uc_reg_read(int reg)
         {
+            return (uint)MTK.RegRead(reg);
+        }
+
+        private static void hookBlockCallBack(Unicorn uc, long addresslong, int size, object user_data)
+        {
+            uint address = (uint)addresslong;
             VmEvent vmEvent;
             int tmp = (int)user_data;
             uint tmp2 = (uint)(tmp);
@@ -1495,10 +1769,16 @@ namespace MT6252_Simulator_Sharp.Simalator
             switch (tmp2)
             {
                 case 4: // 中断恢复
-                    RestoreCpuContext(getRowOfArray(isrStackList,--irq_nested_count)); 
+                    unsafe
+                    { 
+                        RestoreCpuContext(ref isrStackList[--irq_nested_count]);
+                    } 
                     break;
                 case 5: // 回调恢复
-                    RestoreCpuContext(stackCallback);
+                    unsafe
+                    {
+                        RestoreCpuContext(ref stackCallback);
+                    }
                     break;
                 case 7:
                     // 过方法sub_87035D4 (0x4000801E)
@@ -1600,72 +1880,87 @@ namespace MT6252_Simulator_Sharp.Simalator
             }
         }
 
-        static void SaveCpuContext(uint[] stackCallbackPtr, uint backAddr)
+        static unsafe void SaveCpuContext(ref uint* stackCallbackPtr, uint backAddr)
         {
-            byte[] stackCallbackPtrTmp = new byte[stackCallbackPtr.Length * 4];
-            MTK.RegRead(Arm.UC_ARM_REG_CPSR, stackCallbackPtrTmp);
-            stackCallbackPtr = Bytes2Uints(stackCallbackPtrTmp); 
-            if ((stackCallbackPtr[0] & 0x20) ==1)
+            Console.WriteLine("SaveCpuContext");
+            //byte[] stackCallbackPtrTmp = new byte[stackCallbackPtr.Length * 4];
+            MTK.RegRead(Arm.UC_ARM_REG_CPSR, Uint2Bytes(*stackCallbackPtr));
+            //stackCallbackPtr = Bytes2Uints(stackCallbackPtrTmp); 
+            if ((stackCallbackPtr[0] & 0x20) !=0)
             { 
                 backAddr += 1;
             }
             int[] regs = new int[] { Arm.UC_ARM_REG_R0, Arm.UC_ARM_REG_R1, Arm.UC_ARM_REG_R2, Arm.UC_ARM_REG_R3, Arm.UC_ARM_REG_R4, Arm.UC_ARM_REG_R5, Arm.UC_ARM_REG_R6, Arm.UC_ARM_REG_R7, Arm.UC_ARM_REG_R8, Arm.UC_ARM_REG_R9, Arm.UC_ARM_REG_R10, Arm.UC_ARM_REG_R11, Arm.UC_ARM_REG_R12, Arm.UC_ARM_REG_R13, Arm.UC_ARM_REG_LR };
-            // u32* addr[] = { stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++, stackCallbackPtr++ };
+            uint*[] addr = new uint*[15];
+            for (int i = 0; i < 15; i++)
+            {
+                addr[i] = stackCallbackPtr++;
+            } 
             // 保存状态 
-            uc_reg_read_batch(MTK,regs, stackCallbackPtr, 1,15);
-            stackCallbackPtr[16] = backAddr;
+            uc_reg_read_batch(MTK,regs, addr, 1,15);
+            *stackCallbackPtr = backAddr;
         }
 
-        private static void uc_reg_read_batch(Unicorn uc, int[] regs, uint[] stackCallbackPtr,int start,int count)
+        private  unsafe static void uc_reg_read_batch(Unicorn uc, int[] regs, uint*[] stackCallbackPtr,int start,int count)
         {
             for (int i = 0; i < count; i++)
             {
-                byte[] tmpbytes = new byte[4];
-                uc.RegRead(regs[i], tmpbytes);
-                uint data = Bytes2Uint(tmpbytes);
-                stackCallbackPtr[i + start] = data;
+                //byte[] tmpbytes = new byte[4];
+                //uc_reg_read(regs[i], tmpbytes);
+                //uint data = Bytes2Uint(tmpbytes);
+                //stackCallbackPtr[i + start] = data;
+
+                *stackCallbackPtr[i] = uc_reg_read(regs[i]);
             } 
         }
 
-        private static void RestoreCpuContext(uint[] stackCallback)
+        private unsafe static void RestoreCpuContext(ref uint* stackCallback)
         {
+            Console.WriteLine("恢复CPU上下文");
             // 恢复CPU上下文
             // 还原状态
-            int[] regs = new int[] { Arm.UC_ARM_REG_CPSR, Arm.UC_ARM_REG_R0, Arm.UC_ARM_REG_R1, Arm.UC_ARM_REG_R2, Arm.UC_ARM_REG_R3, Arm.UC_ARM_REG_R4, Arm.UC_ARM_REG_R5, Arm.UC_ARM_REG_R6, Arm.UC_ARM_REG_R7, Arm.UC_ARM_REG_R8, Arm.UC_ARM_REG_R9, Arm.UC_ARM_REG_R10, Arm.UC_ARM_REG_R11, Arm.UC_ARM_REG_R12, Arm.UC_ARM_REG_R13, Arm.UC_ARM_REG_LR, Arm.UC_ARM_REG_PC };
-            uc_reg_write_batch(MTK, regs, stackCallback, 17); 
-            //MTK.RegWrite;
+            int[] regs =  { Arm.UC_ARM_REG_CPSR, Arm.UC_ARM_REG_R0, Arm.UC_ARM_REG_R1, Arm.UC_ARM_REG_R2, Arm.UC_ARM_REG_R3, Arm.UC_ARM_REG_R4, Arm.UC_ARM_REG_R5, Arm.UC_ARM_REG_R6, Arm.UC_ARM_REG_R7, Arm.UC_ARM_REG_R8, Arm.UC_ARM_REG_R9, Arm.UC_ARM_REG_R10, Arm.UC_ARM_REG_R11, Arm.UC_ARM_REG_R12, Arm.UC_ARM_REG_R13, Arm.UC_ARM_REG_LR, Arm.UC_ARM_REG_PC };
+            uc_reg_write_batch(MTK, regs,ref stackCallback, 17); 
+
         }
 
-        private static void uc_reg_write_batch(Unicorn uc, int[] regs, uint[] v2stackCallback , int count)
+        private unsafe static void uc_reg_write_batch(Unicorn uc, int[] regs, ref uint* v2stackCallback , int count)
         { 
             for(int i = 0; i < count; i++)
             {
-                uc.RegWrite(regs[i], Uint2Bytes(v2stackCallback[i]));
+                uc.RegWrite(regs[i], Uint2BytesRef(ref v2stackCallback[i]));
             } 
         }
         // 是否禁用IRQ中断
         static bool isIRQ_Disable(uint cpsr)
         {
-            return (cpsr & (1 << 7)) ==1 ;
+            return (cpsr & (1 << 7)) !=0 ;
+        }
+        static bool isIRQ_Disable(long cpsr)
+        {
+            return (cpsr & (1 << 7)) != 0;
         }
 
         // 通过中断进行回调
-        private static bool StartInterrupt(int irq_line, long lastAddr)
+        private static bool StartInterrupt(int irq_line, uint lastAddr)
         {
+             
             // 检查 IRQ 是否被屏蔽
-            if ((IRQ_MASK_SET_L_Data & (1 << irq_line) )==1 )
+            if ((IRQ_MASK_SET_L_Data & (1 << irq_line) )!=0 )
             {
-                byte[] tmpdata = new byte[4];
+                //byte[] tmpdata = new byte[4];
 
-                MTK.RegRead( Arm.UC_ARM_REG_CPSR, tmpdata );
-                changeTmp = Bytes2Uint(tmpdata);
+                //MTK.RegRead( Arm.UC_ARM_REG_CPSR, tmpdata );
+                //changeTmp = Bytes2Uint(tmpdata); 
+                MTK.RegRead(Arm.UC_ARM_REG_CPSR, int2BytesRef(ref changeTmp)); 
 
                 if (!isIRQ_Disable(changeTmp))
                 {
                     changeTmp1 = (uint)(CPU_ISR_CB_ADDRESS + 4);
-
-                    SaveCpuContext(getRowOfArray (isrStackList,irq_nested_count++),(uint) lastAddr);
-
+                    unsafe
+                    {
+                        SaveCpuContext(ref isrStackList[irq_nested_count++], (uint)lastAddr);
+                    }
                     MTK.RegWrite(Arm.UC_ARM_REG_LR, Uint2Bytes(changeTmp1));// LR更新为特殊寄存器 
                     changeTmp1 = (uint)irq_line;
 
@@ -1736,22 +2031,22 @@ namespace MT6252_Simulator_Sharp.Simalator
 
                 changeTmp = (uint)((kv >= 0 && kv < 16) ? (is_press << kv) : 0);
                 changeTmp = 0xffff & (~changeTmp);
-                MTK.MemWrite(0x81070004, Uint2Bytes(changeTmp).Take(2).ToArray());
+                MTK.MemWrite(0x81070004, Uint2Bytes(changeTmp,2));
                 changeTmp = (uint)((kv >= 16 && kv < 32) ? (is_press << (kv - 16)) : 0);
                 changeTmp = 0xffff & (~changeTmp);
 
-                MTK.MemWrite(0x81070008, Uint2Bytes(changeTmp).Take(2).ToArray()); 
+                MTK.MemWrite(0x81070008, Uint2Bytes(changeTmp, 2)); 
                 changeTmp = (uint)((kv >= 32 && kv < 48) ? (is_press << (kv - 32)) : 0);
                 changeTmp = 0xffff & (~changeTmp);
 
-                MTK.MemWrite(0x8107000C, Uint2Bytes(changeTmp).Take(2).ToArray()); 
+                MTK.MemWrite(0x8107000C, Uint2Bytes(changeTmp, 2)); 
                 changeTmp = (uint)((kv >= 48 && kv < 64) ? (is_press << (kv - 48)) : 0);
                 changeTmp = 0xffff & (~changeTmp);
 
-                MTK.MemWrite(0x81070010, Uint2Bytes(changeTmp).Take(2).ToArray()); 
+                MTK.MemWrite(0x81070010, Uint2Bytes(changeTmp, 2)); 
                 // 连续按下间隔 t = v / 32ms
                 changeTmp = 32; 
-                MTK.MemWrite(0x81070018, Uint2Bytes(changeTmp).Take(2).ToArray()); 
+                MTK.MemWrite(0x81070018, Uint2Bytes(changeTmp, 2)); 
             }  
         }
 
@@ -1921,7 +2216,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             }
         }
 
-        public static void uc_mem_write(Unicorn uc, uint rTC_IRQ_STATUS,byte[]  data, int count)
+        public static void uc_mem_write(Unicorn uc,uint rTC_IRQ_STATUS,byte[]  data, int count)
         {
             //byte[] bytes = data.Take(count).ToArray();
             uc.MemWrite(rTC_IRQ_STATUS, data);
@@ -2033,18 +2328,30 @@ namespace MT6252_Simulator_Sharp.Simalator
 
         private static void uc_mem_write(Unicorn uc, uint rTC_IRQ_STATUS, ref uint changeTmp1, int count)
         {
-            byte[] bytes = Uint2Bytes(changeTmp1).Take(count).ToArray();
-            uc.MemWrite(rTC_IRQ_STATUS, bytes); 
-        }  
+            uc.MemWrite(rTC_IRQ_STATUS, Uint2Bytes(changeTmp1,count));
+        }
+        //private static void uc_mem_write(Unicorn uc, uint rTC_IRQ_STATUS, ref uint changeTmp1, int count)
+        //{
+        //    byte[] bytes = Uint2Bytes(changeTmp1).Take(count).ToArray();
+        //    uc.MemWrite(rTC_IRQ_STATUS, bytes);
+        //}
 
-        private static void uc_mem_read(Unicorn uc, long address, ref uint changeTmp1, int v2)
+        //private static void uc_mem_read(Unicorn uc, uint address, ref uint changeTmp1, int v2)
+        //{
+        //    //byte[] tmpbytes = new byte[v2];
+        //    //uc.MemRead(address, tmpbytes);
+        //    //changeTmp1 = Bytes2Uint(tmpbytes); 
+        //    uc.MemRead(address, Uint2Bytes(changeTmp1)); 
+        //}
+        private static void uc_mem_read(Unicorn uc, uint address, ref uint changeTmp1, int count)
         {
-            byte[] tmpbytes = new byte[v2];
-            uc.MemRead(address, tmpbytes); 
-            changeTmp1 = Bytes2Uint(tmpbytes);
+            //byte[] tmpbytes = new byte[v2];
+            //uc.MemRead(address, tmpbytes);
+            //changeTmp1 = Bytes2Uint(tmpbytes);
+            uc.MemRead(address, Uint2Bytes(changeTmp1,count));
         }
 
-        private static void uc_mem_read(Unicorn uc, long address, ref byte[] changeTmp1, uint count)
+        private static void uc_mem_read(Unicorn uc, uint address, ref byte[] changeTmp1, uint count)
         {
             byte[] tmpbytes = new byte[count];
             uc.MemRead(address, tmpbytes);
@@ -2058,8 +2365,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         private static uint changeTmp2 = 0; 
         private static uint changeTmp3 = 0;  
 
-        private static uint VmEventPtr = 0;
-
+        private static uint VmEventPtr = 0; 
 
         /// <summary>
         /// 读取文件内容到字节数组
@@ -2224,15 +2530,15 @@ namespace MT6252_Simulator_Sharp.Simalator
             uint msp = 0, pc = 0, lr = 0, cpsr = 0;
 
             // 读取寄存器值
-            uc_reg_read(MTK, Arm.UC_ARM_REG_PC, ref pc);
-            uc_reg_read(MTK, Arm.UC_ARM_REG_SP, ref msp);
-            uc_reg_read(MTK, Arm.UC_ARM_REG_CPSR, ref cpsr);
-            uc_reg_read(MTK, Arm.UC_ARM_REG_LR, ref lr);
-            uc_reg_read(MTK, Arm.UC_ARM_REG_R0, ref r0);
-            uc_reg_read(MTK, Arm.UC_ARM_REG_R1, ref r1);
-            uc_reg_read(MTK, Arm.UC_ARM_REG_R2, ref r2);
-            uc_reg_read(MTK, Arm.UC_ARM_REG_R3, ref r3);
-            uc_reg_read(MTK, Arm.UC_ARM_REG_R4, ref r4);
+            uc_reg_readRef(MTK, Arm.UC_ARM_REG_PC, ref pc);
+            uc_reg_readRef(MTK, Arm.UC_ARM_REG_SP, ref msp);
+            uc_reg_readRef(MTK, Arm.UC_ARM_REG_CPSR, ref cpsr);
+            uc_reg_readRef(MTK, Arm.UC_ARM_REG_LR, ref lr);
+            uc_reg_readRef(MTK, Arm.UC_ARM_REG_R0, ref r0);
+            uc_reg_readRef(MTK, Arm.UC_ARM_REG_R1, ref r1);
+            uc_reg_readRef(MTK, Arm.UC_ARM_REG_R2, ref r2);
+            uc_reg_readRef(MTK, Arm.UC_ARM_REG_R3, ref r3);
+            uc_reg_readRef(MTK, Arm.UC_ARM_REG_R4, ref r4);
 
             // 输出寄存器信息
             Console.WriteLine($"r0:{r0:X8} r1:{r1:X8} r2:{r2:X8} r3:{r3:X8} r4:{r4:X8}");
