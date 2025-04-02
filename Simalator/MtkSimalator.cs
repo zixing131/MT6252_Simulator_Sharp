@@ -2731,62 +2731,65 @@ namespace MT6252_Simulator_Sharp.Simalator
                 using (Bitmap bmp = new Bitmap(LCD_SCREEN_WIDTH, LCD_SCREEN_HEIGHT, PixelFormat.Format32bppArgb))
                 {
                     for (byte li = 0; li < 4; li++)
-                {
-                    uint pz = LCD_Layer_Address[li];
-                    if (pz > 0)
                     {
-                            // Read screen buffer from emulated memory 
-                          MTK.MemRead(pz, screenBuffer);
-//                            uc_mem_read(MTK, pz, ref screenBuffer, LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2);
+                        uint pz = LCD_Layer_Address[li];
+                        if (pz > 0)
+                        {
+                                // Read screen buffer from emulated memory 
+                              MTK.MemRead(pz, screenBuffer);
+    //                            uc_mem_read(MTK, pz, ref screenBuffer, LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2);
 
 
-                        // Lock bitmap data for direct access
-                        BitmapData bmpData = bmp.LockBits(
-                            new Rectangle(0, 0, bmp.Width, bmp.Height),
-                            ImageLockMode.WriteOnly,
-                            bmp.PixelFormat);
+                            // Lock bitmap data for direct access
+                            BitmapData bmpData = bmp.LockBits(
+                                new Rectangle(0, 0, bmp.Width, bmp.Height),
+                                ImageLockMode.WriteOnly,
+                                bmp.PixelFormat);
 
                            
-                        unsafe
-                            {
-                                byte* ptr;
-                                ptr = (byte*)bmpData.Scan0;
-
-                            for (ushort i = 0; i < LCD_SCREEN_HEIGHT; i++)
-                            {
-                                for (ushort j = 0; j < LCD_SCREEN_WIDTH; j++)
+                            unsafe
                                 {
-                                    pz = (uint)(j + i * LCD_SCREEN_WIDTH);
-                                    ushort color = BitConverter.ToUInt16(screenBuffer, (int)pz * 2);
+                                    byte* ptr;
+                                    ptr = (byte*)bmpData.Scan0;
 
-                                    // Convert 565 RGB to 888 RGB
-                                    byte r = (byte)((color >> 11) & 0x1F);
-                                    byte g = (byte)((color >> 5) & 0x3F);
-                                    byte b = (byte)(color & 0x1F);
+                                for (ushort i = 0; i < LCD_SCREEN_HEIGHT; i++)
+                                {
+                                    for (ushort j = 0; j < LCD_SCREEN_WIDTH; j++)
+                                    {
+                                        pz = (uint)(j + i * LCD_SCREEN_WIDTH);
+                                        ushort color = BitConverter.ToUInt16(screenBuffer, (int)pz * 2);
+                                        if (color != 0x1f)
+                                        {
+                                            // Convert 565 RGB to 888 RGB
+                                            byte r = (byte)((color >> 11) & 0x1F);
+                                            byte g = (byte)((color >> 5) & 0x3F);
+                                            byte b = (byte)(color & 0x1F);
 
-                                    // Scale to 8-bit
-                                    r = (byte)(r * 255 / 31);
-                                    g = (byte)(g * 255 / 63);
-                                    b = (byte)(b * 255 / 31);
+                                            // Scale to 8-bit
+                                            r = (byte)(r * 255 / 31);
+                                            g = (byte)(g * 255 / 63);
+                                            b = (byte)(b * 255 / 31);
 
-                                    // Set pixel (BGRA format)
-                                    int pos = (i * bmpData.Stride) + (j * 4);
-                                    ptr[pos] = b;     // Blue
-                                    ptr[pos + 1] = g;  // Green
-                                    ptr[pos + 2] = r;  // Red
-                                    ptr[pos + 3] = 255; // Alpha (fully opaque)
+                                            // Set pixel (BGRA format)
+                                            int pos = (i * bmpData.Stride) + (j * 4);
+                                            ptr[pos] = b;     // Blue
+                                            ptr[pos + 1] = g;  // Green
+                                            ptr[pos + 2] = r;  // Red
+                                            ptr[pos + 3] = 255; // Alpha (fully opaque)
+                                        } 
+                                    }
                                 }
-                            }
-                                //byte[] datas = PointerToByteArray(ptr, LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2);  
-                                bmp.UnlockBits(bmpData); 
-                                UpdateSurfaceAction?.Invoke(bmp);
-                            } 
+                                    //byte[] datas = PointerToByteArray(ptr, LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2);  
+                                    bmp.UnlockBits(bmpData); 
+                                } 
 
-                            // Save as PNG
-                            //bmp.Save("screen_output.png", ImageFormat.Png); 
-                        }
+                                // Save as PNG
+                                //bmp.Save("screen_output.png", ImageFormat.Png); 
+                            }
+                    }
+
+                    UpdateSurfaceAction?.Invoke(bmp);
                 }
-                 }
 
                 // Update window surface (original SDL rendering)
                 //SDL.SDL_UpdateWindowSurface(window);
