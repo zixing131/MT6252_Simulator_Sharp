@@ -2,12 +2,14 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Xml;
 using UnicornEngine;
 using UnicornEngine.Const;
+using static Microsoft.FSharp.Core.ByRefKinds;
 
 
 namespace MT6252_Simulator_Sharp.Simalator
@@ -365,7 +367,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             cmdRev = 0,
             sendDataCount = 0,
             readDataCount = 0,
-            cacheData = new uint[64]
+            cacheData = new uint[70]
         }; 
 
         //static IntPtr ArrToPtr(byte[] array)
@@ -518,14 +520,14 @@ namespace MT6252_Simulator_Sharp.Simalator
         }
 
         static uint lastAddress = 0;
-
+        static int incount = 0;
         private static void hookRamCallBack(Unicorn uc, int type, uint address, int size, uint value, object userData)
         {
             //Console.WriteLine($"hookRamCallBack address = ({address:X})");
             int data = (int)userData;  
 
             // Merge images: smaller layer numbers are lower layers, larger are upper layers
-            switch ((uint)address)
+            switch (address)
             {
                 case SIM1_CARD_TYPE_REG:
                     changeTmp1 = 0x20;
@@ -747,20 +749,20 @@ namespace MT6252_Simulator_Sharp.Simalator
                     switch (MSDC_CMD_CACHE)
                     {
                         case SDC_CMD_CMD0:// 进入SPI模式
-                            Console.WriteLine($"SD卡 进入SPI模式");
+                            //Console.WriteLine($"SD卡 进入SPI模式");
                             break;
                         case SDC_CMD_CMD1:
                             break;
                         case SDC_CMD_CMD2:
                             // 用于请求 SD 卡返回 CID (Card Identification Number)数据(128位响应)
                             // printf("SD卡 获取CID寄存器(%x)\n", SEND_SDDATA_CACHE); 
-                            Console.WriteLine($"SD卡 获取CID寄存器");
+                            //Console.WriteLine($"SD卡 获取CID寄存器");
                             changeTmp1 = 0xF016C1C4;
                             uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD7:
                             // 用于选择或取消选择一张 SD 卡
-                            Console.WriteLine($"取消或选择SD卡");
+                           // Console.WriteLine($"取消或选择SD卡");
                             break;
                         case SDC_CMD_CMD8:
                             //询问SD卡的版本号和电压范围
@@ -770,20 +772,20 @@ namespace MT6252_Simulator_Sharp.Simalator
                         case SDC_CMD_CMD9:
                             // 获取SD卡的CSD寄存器（Card-Specific Data Register）(128位响应)
                             // printf("SD卡 获取CSD寄存器(%x)\n", SEND_SDDATA_CACHE);
-                            Console.WriteLine($"SD卡 获取CSD寄存器");
+                            //Console.WriteLine($"SD卡 获取CSD寄存器");
                             //  changeTmp1 = 0x400E0032;//原始数据
                             changeTmp1 = 0x0000e004;// int*转换到char*
                             uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD55:
                             //用于通知SD卡，下一个命令将是应用命令（ACMD）
-                            Console.WriteLine("SD卡ACMD模式开启");
+                            //Console.WriteLine("SD卡ACMD模式开启");
                             changeTmp1 = 0x20;
                             uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD41_SD:
                             // 初始化SD命令
-                            Console.WriteLine("初始化SD卡"); 
+                            //Console.WriteLine("初始化SD卡"); 
                             //  bit 31 = 1：卡已经准备好，可以进行后续操作。
                             //  bit 30 = 0：该卡为标准容量卡 SDSC，不是 SDHC/SDXC 高容量卡。
                             //  bit 23-15 = 0xFF：卡支持的电压范围是 2.7V到3.6V。
@@ -793,14 +795,14 @@ namespace MT6252_Simulator_Sharp.Simalator
                         case SDC_CMD_CMD3_SD:
                             // SEND_RELATIVE_ADDR (RCA)在 SD 卡的初始化过程中为卡分配一个相对地址
                             // printf("SD卡 分配相对地址(%x)\n", SEND_SDDATA_CACHE); 
-                            Console.WriteLine("SD卡 分配相对地址");
+                            //Console.WriteLine("SD卡 分配相对地址");
                             changeTmp1 = 0x3001;
                             uc.MemWrite(SD_DATA_RESP_REG0, Uint2Bytes(changeTmp1));
                             break;
                         case SDC_CMD_CMD12:
                             // 结束连续多数据块传输
                             // printf("结束SD卡连续读\n");
-                            Console.WriteLine("结束SD卡连续读");
+                            //Console.WriteLine("结束SD卡连续读");
                             break;
                         case SDC_CMD_CMD13:
                             // 查询 SD 卡的状态，并返回卡的当前状态信息 
@@ -812,7 +814,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                             break;
                         case SDC_CMD_CMD16:
                             // 该命令用于设置数据块的长度
-                            Console.WriteLine("SD卡 设置SD数据块长度");
+                            //Console.WriteLine("SD卡 设置SD数据块长度");
                             // printf("SD卡 设置SD数据块长度(%x)\n", SEND_SDDATA_CACHE);
                             // DMA_Transfer_Bytes_Count = SEND_SDDATA_CACHE;
                             break;
@@ -1073,13 +1075,13 @@ namespace MT6252_Simulator_Sharp.Simalator
                 case RW_SFI_OUTPUT_LEN_REG:
                     if (data == 1)
                     {
-                        SF_C_Frame.sendDataCount = (uint)value;
+                        SF_C_Frame.sendDataCount =  value;
                     }
                     break;
                 case RW_SFI_INPUT_LEN_REG:
                     if (data == 1)
                     {
-                        SF_C_Frame.readDataCount = (uint)value;
+                        SF_C_Frame.readDataCount =  value;
                     }
                     break;
                 case RW_SFI_MAC_CTL:
@@ -1100,7 +1102,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                         {
                             changeTmp1 = SF_C_Frame.cacheData[0];
                             SF_C_Frame.cmd = (byte)(changeTmp1 & 0xff);
-                            SF_C_Frame.address = (uint)((changeTmp1 >> 24) | (((changeTmp1 >> 16) & 0xff) << 8) | (((changeTmp1 >> 8) & 0xff) << 16));
+                            SF_C_Frame.address = (changeTmp1 >> 24) | (((changeTmp1 >> 16) & 0xff) << 8) | (((changeTmp1 >> 8) & 0xff) << 16);
                             switch (SF_C_Frame.cmd)
                             {
                                 case 0x2:
@@ -1112,14 +1114,27 @@ namespace MT6252_Simulator_Sharp.Simalator
                                     // 减去1cmd 3addr 就是实际写入长度，所以是 - 4
                                     //  地址4字节对齐
                                     changeTmp = 0x8000000 | SF_C_Frame.address;
+                                    
+
+                                    //long [] datas = uints2Longs(SF_C_Frame.cacheData);
+
+
+                                    //byte[] tmp = longs2Bytes(datas).Skip(8).ToArray();
+                                    byte[] tmp = Uints2Bytes(SF_C_Frame.cacheData).Skip(4).ToArray();
+                                    //incount++;
+                                    //if (incount <= 16)
+                                    //{
+                                    //    Console.WriteLine($"Enter {tmp[0]:x} SF_C_Frame.sendDataCount={SF_C_Frame.sendDataCount:x}");
+                                    //}
+
                                     SF_C_Frame.sendDataCount -= 4;
-                                    uc.MemWrite(changeTmp, Uints2Bytes(SF_C_Frame.cacheData.Skip(4).Take((int)SF_C_Frame.sendDataCount).ToArray())); 
+                                    uc_mem_write(MTK,changeTmp, tmp, (int)SF_C_Frame.sendDataCount); 
                                     break;
                                 case 0x5:
                                     changeTmp = SF_C_Frame.SR_REG[0];
                                     changeTmp |= (uint)(SF_C_Frame.SR_REG[1] << 8);
                                     changeTmp |= (uint)(SF_C_Frame.SR_REG[2] << 16);
-                                    uc.MemWrite(RW_SFI_GPRAM_DATA_REG, Uint2Bytes(changeTmp));
+                                    uc_mem_write(MTK, RW_SFI_GPRAM_DATA_REG, Uint2Bytes(changeTmp),4); 
                                     break;
                                 case 0x1:
                                     changeTmp = SF_C_Frame.cacheData[0];
@@ -1158,9 +1173,14 @@ namespace MT6252_Simulator_Sharp.Simalator
                     {
                         if (data == 1)
                         {
-                            uint off = (uint)(address - RW_SFI_GPRAM_DATA_REG);
+                            uint off = address - RW_SFI_GPRAM_DATA_REG;
                             off /= 4;
-                            SF_C_Frame.cacheData[off] = (uint)value;
+                            //if (incount <= 16)
+                            //{
+                            //    Console.WriteLine($" off= {off} value={value:x}");
+                            //}
+                            SF_C_Frame.cacheData[off] = value;
+                            
                         }
                     }
                     /*
@@ -1200,6 +1220,16 @@ namespace MT6252_Simulator_Sharp.Simalator
 
         }
 
+        private static long[] uints2Longs(uint[] cacheData)
+        {
+            long[] ret = new long[cacheData.Length];
+            for(int i = 0; i < cacheData.Length; i++)
+            {
+                ret[i] = cacheData[i];
+            }
+            return ret;
+        }
+
         private static void confirm(string title, string message)
         {
             MessageBox.Show(message, title);
@@ -1212,6 +1242,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             byte flag;
             if (SD_File_Handle == null)
             {
+                Console.WriteLine("writeSDFile SD_File_Handle = null");
                 return false;
             }
 
@@ -1341,13 +1372,13 @@ namespace MT6252_Simulator_Sharp.Simalator
                 else if (sim_num == 1)
                     uc_mem_write(MTK, SIM2_DATA, ref changeTmp1, 4);
 
-                Console.WriteLine($"[sim{sim_num}] read data({changeTmp1:X2})(last:{lastAddress:X8})");
+                Console.WriteLine($"[sim{sim_num}] read data({changeTmp1:x2})(last:{lastAddress:x})");
             }
             else // 写操作
             {
                 // 写入发送缓冲区
                 sim_dev.TxBuffer[sim_dev.TxBufferIndex++] = (byte)value;
-                Console.WriteLine($"[sim{sim_num}] write data({value:X2})");
+                Console.WriteLine($"[sim{sim_num}] write data({value:x2})");
             }
         }
 
@@ -1360,7 +1391,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         static void SIM_BASE_HANDLE(ref VM_SIM_DEV sim_dev, byte sim_num, uint value)
         {
             sim_dev.Control = (uint)value;  // 显式转换为uint以匹配原u32类型
-            Console.WriteLine($"[sim{sim_num}] control({value:X8})");
+            Console.WriteLine($"[sim{sim_num}] control({value:x})");
         }
 
         /// <summary>
@@ -1375,7 +1406,7 @@ namespace MT6252_Simulator_Sharp.Simalator
 
             var sb = new StringBuilder();
             sb.Append($"[sim{sim_num}] irq enable");
-            sb.Append($"({lastAddress:X8})");
+            sb.Append($"({lastAddress:x})");
 
             // 检查各中断标志位
             if ((value & (int)SIM_IRQ_CHANNEL.SIM_IRQ_TX) != 0)
@@ -1395,7 +1426,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             if ((value & 0xFFFFFFFF) == 0)  // 修正原代码中的位运算错误
                 sb.Append(" [NONE]");
 
-            sb.Append($"({value:X8})");
+            sb.Append($"({value:x})");
             Console.WriteLine(sb.ToString());
         }
         static byte[] SIM_ATR_RSP_DATA = { 0x3b, 0x00, 1, 2, 3, 4, 5, 6 };
@@ -1501,25 +1532,39 @@ namespace MT6252_Simulator_Sharp.Simalator
         //    return ret[0];
         //}
 
-        public unsafe static byte[] Uints2Bytes(uint[] uintArray)
+        private static byte[] Uints2Bytes(uint[] uintArray)
         {
             byte[] byteArray = new byte[uintArray.Length * sizeof(uint)];
-
-            // 固定 byte[] 和 uint[] 内存，防止 GC 移动
-            fixed (byte* pBytes = byteArray)
-            fixed (uint* pUints = uintArray)
-            {
-                // 直接复制内存（避免 Buffer.BlockCopy 的额外开销）
-                Buffer.MemoryCopy(
-                    pUints,         // 源指针（uint[]）
-                    pBytes,         // 目标指针（byte[]）
-                    byteArray.Length, // 目标字节数
-                    byteArray.Length  // 要复制的字节数
-                );
-            }
+            Buffer.BlockCopy(uintArray, 0, byteArray, 0, byteArray.Length);
             return byteArray;
         }
-        public unsafe static byte[] Uint2Bytes(uint uintdata,int size = 4,int start =  0)
+
+        private static byte[] longs2Bytes(long[] uintArray)
+        {
+            byte[] byteArray = new byte[uintArray.Length * sizeof(long)];
+            Buffer.BlockCopy(uintArray, 0, byteArray, 0, byteArray.Length);
+            return byteArray;
+        }
+
+        //public unsafe static byte[] Uints2Bytes(uint[] uintArray)
+        //{
+        //    byte[] byteArray = new byte[uintArray.Length * sizeof(uint)];
+
+        //    // 固定 byte[] 和 uint[] 内存，防止 GC 移动
+        //    fixed (byte* pBytes = byteArray)
+        //    fixed (uint* pUints = uintArray)
+        //    {
+        //        // 直接复制内存（避免 Buffer.BlockCopy 的额外开销）
+        //        Buffer.MemoryCopy(
+        //            pUints,         // 源指针（uint[]）
+        //            pBytes,         // 目标指针（byte[]）
+        //            byteArray.Length, // 目标字节数
+        //            byteArray.Length  // 要复制的字节数
+        //        );
+        //    }
+        //    return byteArray;
+        //}
+        public unsafe static byte[] Uint2Bytes(uint uintdata,int size = 4)
         {
             byte[] byteArray = new byte[size];
 
@@ -1719,7 +1764,8 @@ namespace MT6252_Simulator_Sharp.Simalator
                 case 0x80601ac: // 过sub_8060194的while(L1D_WIN_Init_SetCommonEvent)
                     changeTmp = uc_reg_read(Arm.UC_ARM_REG_R0); 
                     Console.WriteLine($"0x80601ac = ({changeTmp:x})");
-
+                    byte[] tmp = Uint2Bytes(changeTmp, 4);
+                    Console.WriteLine($"0x80601ac = ({tmp[0]:x})");
                     uc.MemWrite(TMDA_BASE, Uint2Bytes(changeTmp,4));
                     break;
 
@@ -2232,8 +2278,8 @@ namespace MT6252_Simulator_Sharp.Simalator
 
         public static void uc_mem_write(Unicorn uc,uint rTC_IRQ_STATUS,byte[]  data, int count)
         {
-            //byte[] bytes = data.Take(count).ToArray();
-            uc.MemWrite(rTC_IRQ_STATUS, data);
+            byte[] bytes = data.Take(count).ToArray();
+            uc.MemWrite(rTC_IRQ_STATUS, bytes);
         } 
 
         /// <summary>
@@ -2563,7 +2609,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                              $"lr:{lr:X8} pc:{pc:X8} lastPc:{lastAddress:X8} irq_c({irq_nested_count})");
 
             // 输出SIM设备状态
-            Console.WriteLine($"sim_dev(rx_irq:{vm_sim1_dev.IrqEnable & 2:X8})");
+            Console.WriteLine($"sim_dev(rx_irq:{vm_sim1_dev.IrqEnable & 2:x})");
             Console.WriteLine("------------");
         }
 
@@ -2689,8 +2735,9 @@ namespace MT6252_Simulator_Sharp.Simalator
                     uint pz = LCD_Layer_Address[li];
                     if (pz > 0)
                     {
-                        // Read screen buffer from emulated memory
-                        uc_mem_read(MTK, pz, ref screenBuffer, LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2);
+                            // Read screen buffer from emulated memory 
+                          MTK.MemRead(pz, screenBuffer);
+//                            uc_mem_read(MTK, pz, ref screenBuffer, LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2);
 
 
                         // Lock bitmap data for direct access

@@ -85,13 +85,18 @@ namespace MT6252_Simulator_Sharp.Simalator
 
     public struct SerialFlash_Control
     {
-        public byte[] SR_REG;          // Size 3
+        public byte[] SR_REG = new byte[3];          // Size 3
         public byte cmd;
         public uint address;
         public byte cmdRev;            // 1 = command received
         public uint sendDataCount;
         public uint readDataCount;
-        public uint[] cacheData;       // Size 64
+        public uint[] cacheData= new uint[70];       // Size 64
+
+        public SerialFlash_Control()
+        {
+
+        }
     }
 
 

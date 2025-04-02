@@ -128,7 +128,7 @@ public partial class MainWindow : Window
 
     void UpdateSurfaceAction(Bitmap bitmap)
     {
-        Console.WriteLine("bitmap " + bitmap);
+        //Console.WriteLine("bitmap " + bitmap);
         myscreen.Dispatcher.Invoke(() =>
         {
             //Convert it to BitmapImage 
