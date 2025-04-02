@@ -19,16 +19,20 @@ namespace MT6252_Simulator_Sharp.Simalator
         public const int Timer_Interrupt_Duration = 1000;
 
         // SD卡镜像文件配置
-        public const string SD_CARD_IMG_PATH = @"Rom\fat32.img";
+        //public const string SD_CARD_IMG_PATH = @"Rom\fat32.img";
+        public const string SD_CARD_IMG_PATH = @"D:\study\github\MT6252_Simulator_Sharp\Rom\fat32.img";
 
         // Rom Flash文件配置 
-        public const string FLASH_IMG_PATH = @"Rom\flash.img";
+        public const string FLASH_IMG_PATH = @"Rom\\flash.img";
 
         // Rom Flash lock配置
         public const string FLASH_IMG_LOCK_PATH = @"Rom\flash.lock";
 
         // 系统固件文件
-        public const string ROM_PROGRAM_BIN = @"Rom\08000000.bin";
+        //public const string ROM_PROGRAM_BIN = @"Rom\08000000.bin";
+
+        // 系统固件文件
+        public const string ROM_PROGRAM_BIN = @"D:\study\github\MT6252_Simulator_Sharp\Rom\08000000.bin";
 
         // LCD屏幕宽度
         public const int LCD_SCREEN_WIDTH = 240;
@@ -1244,7 +1248,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             uint lr = CPU_ISR_CB_ADDRESS + 8;
 
             // 读取当前PC值
-            uc_reg_readRef(MTK, Arm.UC_ARM_REG_PC, ref backAddr);
+            backAddr = uc_reg_read( Arm.UC_ARM_REG_PC);
 
             // 保存CPU上下文
             unsafe
@@ -1281,6 +1285,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             //Console.WriteLine("readSDFile");
             if (SD_File_Handle == null)
             {
+                Console.WriteLine("SD_File_Handle is null ");
                 return null;
             }
 
@@ -1758,6 +1763,11 @@ namespace MT6252_Simulator_Sharp.Simalator
         {
             return (uint)MTK.RegRead(reg);
         }
+        private static void uc_reg_read(int reg,ref uint value)
+        {
+            value = (uint)MTK.RegRead(reg);
+        }
+
 
         private static void hookBlockCallBack(Unicorn uc, long addresslong, int size, object user_data)
         {
@@ -1882,26 +1892,27 @@ namespace MT6252_Simulator_Sharp.Simalator
 
         static unsafe void SaveCpuContext(ref uint* stackCallbackPtr, uint backAddr)
         {
-            Console.WriteLine("SaveCpuContext");
-            //byte[] stackCallbackPtrTmp = new byte[stackCallbackPtr.Length * 4];
-            MTK.RegRead(Arm.UC_ARM_REG_CPSR, Uint2Bytes(*stackCallbackPtr));
+            //Console.WriteLine("SaveCpuContext");
+            //byte[] stackCallbackPtrTmp = new byte[stackCallbackPtr.Length * 4];  
+            *stackCallbackPtr = uc_reg_read(Arm.UC_ARM_REG_CPSR); 
+
             //stackCallbackPtr = Bytes2Uints(stackCallbackPtrTmp); 
             if ((stackCallbackPtr[0] & 0x20) !=0)
             { 
                 backAddr += 1;
             }
             int[] regs = new int[] { Arm.UC_ARM_REG_R0, Arm.UC_ARM_REG_R1, Arm.UC_ARM_REG_R2, Arm.UC_ARM_REG_R3, Arm.UC_ARM_REG_R4, Arm.UC_ARM_REG_R5, Arm.UC_ARM_REG_R6, Arm.UC_ARM_REG_R7, Arm.UC_ARM_REG_R8, Arm.UC_ARM_REG_R9, Arm.UC_ARM_REG_R10, Arm.UC_ARM_REG_R11, Arm.UC_ARM_REG_R12, Arm.UC_ARM_REG_R13, Arm.UC_ARM_REG_LR };
-            uint*[] addr = new uint*[15];
-            for (int i = 0; i < 15; i++)
-            {
-                addr[i] = stackCallbackPtr++;
-            } 
+            //uint*[] addr = new uint*[15];
+            //for (int i = 0; i < 15; i++)
+            //{
+            //    addr[i] = stackCallbackPtr++;
+            //} 
             // 保存状态 
-            uc_reg_read_batch(MTK,regs, addr, 1,15);
-            *stackCallbackPtr = backAddr;
+            uc_reg_read_batch(MTK,regs, ref stackCallbackPtr, 1,15);
+            stackCallbackPtr[16] = backAddr;
         }
 
-        private  unsafe static void uc_reg_read_batch(Unicorn uc, int[] regs, uint*[] stackCallbackPtr,int start,int count)
+        private  unsafe static void uc_reg_read_batch(Unicorn uc, int[] regs, ref uint* stackCallbackPtr,int start,int count)
         {
             for (int i = 0; i < count; i++)
             {
@@ -1909,14 +1920,15 @@ namespace MT6252_Simulator_Sharp.Simalator
                 //uc_reg_read(regs[i], tmpbytes);
                 //uint data = Bytes2Uint(tmpbytes);
                 //stackCallbackPtr[i + start] = data;
-
-                *stackCallbackPtr[i] = uc_reg_read(regs[i]);
+                uint nowdata = uc_reg_read(regs[i]);
+                //Console.WriteLine($"uc_reg_read_batch {i+ start} = {nowdata:x}");
+                stackCallbackPtr[i + start] = nowdata;
             } 
         }
 
         private unsafe static void RestoreCpuContext(ref uint* stackCallback)
         {
-            Console.WriteLine("恢复CPU上下文");
+            //Console.WriteLine("恢复CPU上下文");
             // 恢复CPU上下文
             // 还原状态
             int[] regs =  { Arm.UC_ARM_REG_CPSR, Arm.UC_ARM_REG_R0, Arm.UC_ARM_REG_R1, Arm.UC_ARM_REG_R2, Arm.UC_ARM_REG_R3, Arm.UC_ARM_REG_R4, Arm.UC_ARM_REG_R5, Arm.UC_ARM_REG_R6, Arm.UC_ARM_REG_R7, Arm.UC_ARM_REG_R8, Arm.UC_ARM_REG_R9, Arm.UC_ARM_REG_R10, Arm.UC_ARM_REG_R11, Arm.UC_ARM_REG_R12, Arm.UC_ARM_REG_R13, Arm.UC_ARM_REG_LR, Arm.UC_ARM_REG_PC };
@@ -1928,7 +1940,9 @@ namespace MT6252_Simulator_Sharp.Simalator
         { 
             for(int i = 0; i < count; i++)
             {
-                uc.RegWrite(regs[i], Uint2BytesRef(ref v2stackCallback[i]));
+                uint nowdata = v2stackCallback[i]; 
+                //Console.WriteLine($"uc_reg_read_batch {i} = {nowdata:x}");
+                uc.RegWrite(regs[i], nowdata);
             } 
         }
         // 是否禁用IRQ中断
@@ -1952,14 +1966,14 @@ namespace MT6252_Simulator_Sharp.Simalator
 
                 //MTK.RegRead( Arm.UC_ARM_REG_CPSR, tmpdata );
                 //changeTmp = Bytes2Uint(tmpdata); 
-                MTK.RegRead(Arm.UC_ARM_REG_CPSR, int2BytesRef(ref changeTmp)); 
+                uc_reg_read(Arm.UC_ARM_REG_CPSR, ref changeTmp); 
 
                 if (!isIRQ_Disable(changeTmp))
                 {
                     changeTmp1 = (uint)(CPU_ISR_CB_ADDRESS + 4);
                     unsafe
                     {
-                        SaveCpuContext(ref isrStackList[irq_nested_count++], (uint)lastAddr);
+                        SaveCpuContext(ref isrStackList[irq_nested_count++],lastAddr);
                     }
                     MTK.RegWrite(Arm.UC_ARM_REG_LR, Uint2Bytes(changeTmp1));// LR更新为特殊寄存器 
                     changeTmp1 = (uint)irq_line;
@@ -2345,10 +2359,11 @@ namespace MT6252_Simulator_Sharp.Simalator
         //}
         private static void uc_mem_read(Unicorn uc, uint address, ref uint changeTmp1, int count)
         {
-            //byte[] tmpbytes = new byte[v2];
-            //uc.MemRead(address, tmpbytes);
-            //changeTmp1 = Bytes2Uint(tmpbytes);
-            uc.MemRead(address, Uint2Bytes(changeTmp1,count));
+            byte[] tmpbytes = new byte[count];
+            uc.MemRead(address, tmpbytes);
+            changeTmp1 = Bytes2Uint(tmpbytes);
+
+            //uc.MemRead(address, Uint2Bytes(changeTmp1,count));
         }
 
         private static void uc_mem_read(Unicorn uc, uint address, ref byte[] changeTmp1, uint count)
@@ -2643,7 +2658,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         /// <summary>
         /// 更新图像的委托
         /// </summary>
-        public static Action<byte[]> UpdateSurfaceAction;
+        public static Action<Bitmap> UpdateSurfaceAction;
 
         static byte[] screenBuffer = new byte[LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2];
 
@@ -2715,9 +2730,9 @@ namespace MT6252_Simulator_Sharp.Simalator
                                     ptr[pos + 3] = 255; // Alpha (fully opaque)
                                 }
                             }
-                                byte[] datas = PointerToByteArray(ptr, LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2);  
+                                //byte[] datas = PointerToByteArray(ptr, LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2);  
                                 bmp.UnlockBits(bmpData); 
-                                UpdateSurfaceAction?.Invoke(datas);
+                                UpdateSurfaceAction?.Invoke(bmp);
                             } 
 
                             // Save as PNG

@@ -1,5 +1,6 @@
 ﻿using MT6252_Simulator_Sharp.Simalator;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Security.Policy;
 using System.Text;
@@ -113,18 +114,25 @@ public partial class MainWindow : Window
         //MtkSimalator.SD_File_Handle?.Dispose();
         //MtkSimalator.FLASH_File_Handle?.Dispose();
     }
-
-    void UpdateSurfaceAction(byte[] bytes)
+    private ImageSource ToBitmapSourceA(Bitmap bitmap)
     {
-        Console.WriteLine("bytes " + bytes.Length);
+        MemoryStream stream = new MemoryStream();
+        bitmap.Save(stream, ImageFormat.Bmp);
+        stream.Position = 0;
+        BitmapImage bitmapImage = new BitmapImage();
+        bitmapImage.BeginInit();
+        bitmapImage.StreamSource = stream;
+        bitmapImage.EndInit();
+        return bitmapImage;
+    }
+
+    void UpdateSurfaceAction(Bitmap bitmap)
+    {
+        Console.WriteLine("bitmap " + bitmap);
         myscreen.Dispatcher.Invoke(() =>
         {
-            //Convert it to BitmapImage
-            BitmapImage image = new BitmapImage();
-            image.BeginInit();
-            image.StreamSource = new MemoryStream(bytes);
-            image.EndInit();
-            myscreen.Source = image; 
+            //Convert it to BitmapImage 
+            myscreen.Source = ToBitmapSourceA(bitmap); 
         });   
     } 
 } 
