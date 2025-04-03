@@ -4,6 +4,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
+using System.Security.Policy;
 using System.Text;
 using System.Windows;
 using System.Xml;
@@ -446,7 +447,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             RAM_MEMPOOL = malloc(size_8mb);
             // 映射寄存器
             uc_mem_map_ptr(MTK, 0x80000000, size_8mb,Common. UC_PROT_ALL, malloc(size_8mb));
-
+             
             // GPIO_BASE_ADDRESS
             uc_mem_map_ptr(MTK, 0x81000000, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
             uc_mem_map_ptr(MTK, TMDA_BASE, size_4mb, Common.UC_PROT_ALL, malloc(size_4mb));
@@ -506,8 +507,36 @@ namespace MT6252_Simulator_Sharp.Simalator
             MTK.AddMemWriteHook(hookRamCallBack, 1, 0x90000000, 0x91000000);
             MTK.AddMemWriteHook(hookRamCallBack, 1, 0xf0000000, 0xf2000000);
 
+            //            uc_mem_write 810a0800
+            //uc_mem_write 878009b
+            //uc_mem_write 810a0800
+            //uc_mem_write 810a0800
+            //uc_mem_write 87980b7
+            //uc_mem_write 810a0800
+            //uc_mem_write 810a0800
+            //uc_mem_write 878009b
+            //uc_mem_write 810a0800
+            //0xC0000005 error 
+
+            //uc_mem_map_ptr(MTK, 0xC0000000, size_1mb, Common.UC_PROT_ALL, IntPtr.Zero);
+            //MTK.AddEventMemHook(EventMemHook, Common.UC_HOOK_MEM_READ_UNMAPPED | Common.UC_HOOK_MEM_WRITE_UNMAPPED);
+            //MTK.AddInterruptHook(InterruptHook);
+            //MTK.AddMemWriteHook();
+
+            //MTK.AddMemReadHook(); 
+
         }
 
+        static void InterruptHook(Unicorn P_0, int P_1, object P_2)
+        { 
+            Console.WriteLine($"异常 InterruptHook");
+        }
+
+        static bool EventMemHook(Unicorn P_0, int type, long address ,int size, long value, object userData)
+        {
+            Console.WriteLine($"异常 type ={type} address = {address:x} size={size} value={value:x}");
+            return true;
+        }
         private static void hookRamCallBack(Unicorn uc, long address, int size, long value, object userData)
         {
 
@@ -1757,6 +1786,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                     // 过sub_80D2CA4
                     changeTmp = uc_reg_read(Arm.UC_ARM_REG_R5);
                     changeTmp2 = 0xff;
+                    Console.WriteLine($"过sub_80D2CA4 {changeTmp:x}");
                     uc.MemWrite(changeTmp + 3, Uint2Bytes(changeTmp2,1));
                     break;
 
@@ -2071,7 +2101,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         private static void SimulatePressKey(byte key, byte is_press)
         {
             // 模拟按键
-
+            Console.WriteLine($"模拟按键 {key:x} {is_press}");
             byte kv = 0;
             bool found = false;
             for (byte i = 0; i < 72; i++)
@@ -2136,7 +2166,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             }  
         }
         static byte is_uc_exited = 0;
-        private static void EnqueueVMEvent(VM_EVENT eventType, uint r0, uint r1)
+        public static void EnqueueVMEvent(VM_EVENT eventType, uint r0, uint r1)
         {
 
             if (is_uc_exited == 1)
@@ -2279,6 +2309,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         public static void uc_mem_write(Unicorn uc,uint rTC_IRQ_STATUS,byte[]  data, int count)
         {
             byte[] bytes = data.Take(count).ToArray();
+            Console.WriteLine($"uc_mem_write {rTC_IRQ_STATUS:x}");
             uc.MemWrite(rTC_IRQ_STATUS, bytes);
         } 
 
@@ -2405,6 +2436,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         //}
         private static void uc_mem_read(Unicorn uc, uint address, ref uint changeTmp1, int count)
         {
+            Console.WriteLine($"uc_mem_read {address:x}");
             byte[] tmpbytes = new byte[count];
             uc.MemRead(address, tmpbytes);
             changeTmp1 = Bytes2Uint(tmpbytes);
@@ -2415,6 +2447,8 @@ namespace MT6252_Simulator_Sharp.Simalator
         private static void uc_mem_read(Unicorn uc, uint address, ref byte[] changeTmp1, uint count)
         {
             byte[] tmpbytes = new byte[count];
+
+            Console.WriteLine($"uc_mem_read {address:x}");
             uc.MemRead(address, tmpbytes);
             changeTmp1 = tmpbytes;
         }
