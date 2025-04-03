@@ -891,12 +891,12 @@ namespace MT6252_Simulator_Sharp.Simalator
                         case SDC_CMD_ACMD42:
                             // 卡检测信号通常用于检测 SD 卡是否插入或取出
                             // printf("SD卡 检查是否插入或取出(%x)\n", SEND_SDDATA_CACHE);
-                            Console.WriteLine("SD卡 检查是否插入或取出");
+                            //Console.WriteLine("SD卡 检查是否插入或取出");
                             break;
                         case SDC_CMD_ACMD51:
                             // 请求 SD 卡返回其 SCR (SD Card Configuration Register)寄存器
                             // printf("SD卡 读取SCR寄存器(%x)\n", SEND_SDCMD_CACHE);
-                            Console.WriteLine("SD卡 读取SCR寄存器");
+                            //Console.WriteLine("SD卡 读取SCR寄存器");
                             break;
                         default:
 
@@ -1786,16 +1786,16 @@ namespace MT6252_Simulator_Sharp.Simalator
                     // 过sub_80D2CA4
                     changeTmp = uc_reg_read(Arm.UC_ARM_REG_R5);
                     changeTmp2 = 0xff;
-                    Console.WriteLine($"过sub_80D2CA4 {changeTmp:x}");
+                    //Console.WriteLine($"过sub_80D2CA4 {changeTmp:x}");
                     uc.MemWrite(changeTmp + 3, Uint2Bytes(changeTmp2,1));
                     break;
 
                 case 0x80601ec:
                 case 0x80601ac: // 过sub_8060194的while(L1D_WIN_Init_SetCommonEvent)
                     changeTmp = uc_reg_read(Arm.UC_ARM_REG_R0); 
-                    Console.WriteLine($"0x80601ac = ({changeTmp:x})");
+                    //Console.WriteLine($"0x80601ac = ({changeTmp:x})");
                     byte[] tmp = Uint2Bytes(changeTmp, 4);
-                    Console.WriteLine($"0x80601ac = ({tmp[0]:x})");
+                    //Console.WriteLine($"0x80601ac = ({tmp[0]:x})");
                     uc.MemWrite(TMDA_BASE, Uint2Bytes(changeTmp,4));
                     break;
 
@@ -1807,7 +1807,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                 case 0x800DA28: // 暂时去不掉
                     changeTmp = 0;
                     uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp);
-                    Console.WriteLine($"0x800DA28({changeTmp:x})"); 
+                    //Console.WriteLine($"0x800DA28({changeTmp:x})"); 
                     break;
 
                 default:
@@ -2101,7 +2101,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         private static void SimulatePressKey(byte key, byte is_press)
         {
             // 模拟按键
-            Console.WriteLine($"模拟按键 {key:x} {is_press}");
+            //Console.WriteLine($"模拟按键 {key:x} {is_press}");
             byte kv = 0;
             bool found = false;
             for (byte i = 0; i < 72; i++)
@@ -2309,7 +2309,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         public static void uc_mem_write(Unicorn uc,uint rTC_IRQ_STATUS,byte[]  data, int count)
         {
             byte[] bytes = data.Take(count).ToArray();
-            Console.WriteLine($"uc_mem_write {rTC_IRQ_STATUS:x}");
+            //Console.WriteLine($"uc_mem_write {rTC_IRQ_STATUS:x}");
             uc.MemWrite(rTC_IRQ_STATUS, bytes);
         } 
 
@@ -2436,7 +2436,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         //}
         private static void uc_mem_read(Unicorn uc, uint address, ref uint changeTmp1, int count)
         {
-            Console.WriteLine($"uc_mem_read {address:x}");
+            //Console.WriteLine($"uc_mem_read {address:x}");
             byte[] tmpbytes = new byte[count];
             uc.MemRead(address, tmpbytes);
             changeTmp1 = Bytes2Uint(tmpbytes);
@@ -2448,7 +2448,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         {
             byte[] tmpbytes = new byte[count];
 
-            Console.WriteLine($"uc_mem_read {address:x}");
+            //Console.WriteLine($"uc_mem_read {address:x}");
             uc.MemRead(address, tmpbytes);
             changeTmp1 = tmpbytes;
         }
