@@ -23,7 +23,8 @@ namespace MT6252_Simulator_Sharp
     {
         public MainWindow()
         {
-            InitializeComponent();
+            InitializeComponent(); 
+
             // 创建 WriteableBitmap
             writeableBmp = new WriteableBitmap(
                 MtkSimalator.LCD_SCREEN_WIDTH, MtkSimalator.LCD_SCREEN_HEIGHT, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null);
@@ -37,8 +38,7 @@ namespace MT6252_Simulator_Sharp
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             MtkLoader();
-        }
-
+        } 
 
         private void MtkLoader()
         {

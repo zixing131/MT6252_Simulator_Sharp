@@ -1,8 +1,9 @@
-﻿using System.Drawing;
+﻿using MtkSimalatorSharp.backend;
+using System;
+using System.Drawing;
+using System.Net.Security;
 using System.Runtime.InteropServices;
-using System.Text;
-using UnicornEngine;
-using UnicornEngine.Const;
+using System.Text; 
 
 
 namespace MT6252_Simulator_Sharp.Simalator
@@ -110,15 +111,6 @@ namespace MT6252_Simulator_Sharp.Simalator
         public const uint EINT_MASK_CLR_REG = 0x81010108; // External interrupt mask register
 
         public const uint SystemTickReg = 0x82000230;
-
-        // Color conversion macros
-        public static byte PIXEL565R(uint v)
-        {
-            return (byte)(((v >> 11) << 3) & 0xff); // 5-bit red
-        }
-
-        public static byte PIXEL565G(uint v) => (byte)(((v >> 5) << 2) & 0xff);  // 6-bit green
-        public static byte PIXEL565B(uint v) => (byte)((v << 3) & 0xff);           // 5-bit blue
 
         // Flash addresses
         public const uint FLASH_BASE_ADDR = 0x8800000;
@@ -391,12 +383,12 @@ namespace MT6252_Simulator_Sharp.Simalator
         }
 
         //初始MTK引擎
-        public static Unicorn MTK = null;
+        public static IBackend MTK = null;
         public static bool isSuccess()
         {
             return MTK != null;
         }
-        public static void uc_mem_map_ptr(Unicorn mtk, uint address, int size, int perms, IntPtr ptr)
+        public static void uc_mem_map_ptr(IBackend mtk, uint address, int size, int perms, IntPtr ptr)
         {
             mtk.MemMap(address, size, perms);
             //  mtk.MemMapPtr(address, size, perms, ptr);
@@ -437,9 +429,13 @@ namespace MT6252_Simulator_Sharp.Simalator
         {
             initData();
 
-            MTK = new Unicorn(UnicornEngine.Const.Common.UC_ARCH_ARM , UnicornEngine.Const.Common.UC_MODE_ARM);
+            MTK = new UnicornNative(); 
+            MTK.nativeInitialize(Common.UC_ARCH_ARM, Common.UC_MODE_ARM);
+
+
             ROM_MEMPOOL = malloc(size_16mb);
             RAM_MEMPOOL = malloc(size_8mb);
+
             // 映射寄存器
             uc_mem_map_ptr(MTK, 0x80000000, size_8mb,Common. UC_PROT_ALL, malloc(size_8mb));
              
@@ -481,26 +477,26 @@ namespace MT6252_Simulator_Sharp.Simalator
             // hook kal_fatal_error_handler
             // err = uc_hook_add(uc, &trace, UC_HOOK_CODE, hookCodeCallBack, 0, 0, 0xFFFFFFFF);
             // 中断
-            MTK.AddBlockHook(hookBlockCallBack, 4, CPU_ISR_CB_ADDRESS, CPU_ISR_CB_ADDRESS + 4);
+            MTK.HookAddNewBlockHook(hookBlockCallBack, 4, CPU_ISR_CB_ADDRESS, CPU_ISR_CB_ADDRESS + 4);
             // 回调
-            MTK.AddBlockHook(hookBlockCallBack,  5, CPU_ISR_CB_ADDRESS + 8, CPU_ISR_CB_ADDRESS + 12);
+            MTK.HookAddNewBlockHook(hookBlockCallBack,  5, CPU_ISR_CB_ADDRESS + 8, CPU_ISR_CB_ADDRESS + 12);
 
-            MTK.AddBlockHook(hookBlockCallBack, 7, 0x4000801E, 0x4000801F);
+            MTK.HookAddNewBlockHook(hookBlockCallBack, 7, 0x4000801E, 0x4000801F);
 
-            MTK.AddBlockHook(hookBlockCallBack, 8, 0, 0xffffffff);
+            MTK.HookAddNewBlockHook(hookBlockCallBack, 8, 0, 0xffffffff);
 
-            MTK.AddCodeHook(hookCodeCallBack, 0, 0x08000000, 0x09000000);
+            MTK.HookAddNewCodeHook(hookCodeCallBack, 0, 0x08000000, 0x09000000);
 
-            MTK.AddMemReadHook(hookRamCallBack, 0, 0x80000000, 0xA2000000);
+            MTK.HookAddNewReadHook(hookRamCallBack, 0, 0x80000000, 0xA2000000);
 
-            MTK.AddMemReadHook(hookRamCallBack, 0, 0x5f288, 0x5f888);
+            MTK.HookAddNewReadHook(hookRamCallBack, 0, 0x5f288, 0x5f888);
 
-            MTK.AddMemWriteHook(hookRamCallBack, 1, 0x78000000, 0x78f00000);
+            MTK.HookAddNewWriteHook(hookRamCallBack, 1, 0x78000000, 0x78f00000);
 
-            MTK.AddMemWriteHook(hookRamCallBack, 1, 0x80000000, 0x81ffffff);
+            MTK.HookAddNewWriteHook(hookRamCallBack, 1, 0x80000000, 0x81ffffff);
 
-            MTK.AddMemWriteHook(hookRamCallBack, 1, 0x90000000, 0x91000000);
-            MTK.AddMemWriteHook(hookRamCallBack, 1, 0xf0000000, 0xf2000000);
+            MTK.HookAddNewWriteHook(hookRamCallBack, 1, 0x90000000, 0x91000000);
+            MTK.HookAddNewWriteHook(hookRamCallBack, 1, 0xf0000000, 0xf2000000);
 
             //            uc_mem_write 810a0800
             //uc_mem_write 878009b
@@ -514,7 +510,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             //0xC0000005 error 
 
             //uc_mem_map_ptr(MTK, 0xC0000000, size_1mb, Common.UC_PROT_ALL, IntPtr.Zero);
-            MTK.AddEventMemHook(EventMemHook, Common.UC_HOOK_MEM_READ_UNMAPPED | Common.UC_HOOK_MEM_WRITE_UNMAPPED | Common.UC_HOOK_MEM_FETCH_UNMAPPED);
+            MTK.HookAddNewEventMemHook(EventMemHook, Common.UC_HOOK_MEM_READ_UNMAPPED | Common.UC_HOOK_MEM_WRITE_UNMAPPED | Common.UC_HOOK_MEM_FETCH_UNMAPPED, 0);
             //MTK.AddInterruptHook(InterruptHook);
             //MTK.AddMemWriteHook();
 
@@ -532,33 +528,46 @@ namespace MT6252_Simulator_Sharp.Simalator
             }
         }
 
-        static void InterruptHook(Unicorn P_0, int P_1, object P_2)
+        static void InterruptHook(IBackend P_0, int P_1, object P_2)
         { 
             Console.WriteLine($"异常 InterruptHook");
         }
 
-        static bool EventMemHook(Unicorn P_0, int type, long address ,int size, long value, object userData)
+        static bool EventMemHook(IBackend backend, int unmappedType, long address, int size, long value, object userdata)
         {
-            Console.WriteLine($"异常 type ={type} address = {address:x} size={size} value={value:x}");
+            Console.WriteLine($"异常 type ={unmappedType} address = {address:x} size={size} value={value:x}");
             return true;
         }
-        private static void hookRamCallBack(Unicorn uc, long address, int size, long value, object userData)
+        private static void hookRamCallBack(IBackend backend, long address, int size,long value, object userData)
         {
 
-            hookRamCallBack(uc, 1, (uint)address, size, (uint)value, userData);
+            hookRamCallBack(backend, 1, (uint)address, size, (uint)value, userData);
         }
 
-        private static void hookRamCallBack(Unicorn uc, long address, int size, object userData)
+        private static void hookRamCallBack(IBackend backend, long address, int size, object userData)
         {
-            hookRamCallBack(uc, 16, (uint)address, size, 0, userData);
+            hookRamCallBack(backend, 16, (uint)address, size, 0, userData);
         }
 
         static uint lastAddress = 0;
         static int incount = 0;
-        private static void hookRamCallBack(Unicorn uc, int type, uint address, int size, uint value, object userData)
+        private static void hookRamCallBack(IBackend uc, int type, uint address, int size, uint value, object userData)
         {
             //Console.WriteLine($"hookRamCallBack address = ({address:X})");
-            int data = (int)userData;  
+            int data = 0;
+            if (userData.GetType() == typeof(UInt32))
+            {
+                uint tmp2 = (uint)(userData);
+                data = (int)tmp2; 
+            }
+            else if (userData.GetType() == typeof(Int32))
+            { 
+                data = (int)userData;
+            }
+            else
+            {
+                Console.WriteLine($"not support: {userData}");
+            } 
 
             // Merge images: smaller layer numbers are lower layers, larger are upper layers
             switch (address)
@@ -882,7 +891,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                             {
                                 vm_dma_msdc_config.ConfigFinish = 0;
                                 byte[] buffer = new byte[vm_dma_msdc_config.TransferCount];
-                                uc.MemRead(vm_dma_msdc_config.DataAddr, buffer);
+                                buffer = uc.MemRead(vm_dma_msdc_config.DataAddr, vm_dma_msdc_config.TransferCount);
                                 writeSDFile(buffer, MSDC_DATA_ADDR, vm_dma_msdc_config.TransferCount);
                                 changeTmp = 0x8000;
                                 uc.MemWrite(SDC_DATSTA_REG, Uint2Bytes(changeTmp));
@@ -1324,13 +1333,12 @@ namespace MT6252_Simulator_Sharp.Simalator
             uc_reg_write(MTK, Arm.UC_ARM_REG_LR, lr);
         }
 
-        static void uc_reg_write(Unicorn uc, int reg, uint data)
-        {
-            uc.RegWrite(reg, Uint2Bytes(data));
-
+        static void uc_reg_write(IBackend uc, int reg, uint data)
+        { 
+            uc.RegWrite(reg, data);
         }
 
-        static void uc_reg_readRef(Unicorn uc, int reg,ref uint data)
+        static void uc_reg_readRef(IBackend uc, int reg,ref uint data)
         {
             //byte[] tmpdata = new byte[4];
             //uc_reg_read(reg, tmpdata);
@@ -1692,7 +1700,7 @@ namespace MT6252_Simulator_Sharp.Simalator
 
 
 
-        private static void hookCodeCallBack(Unicorn uc, long addresslong, int size, object userData)
+        private static void hookCodeCallBack(IBackend uc, long addresslong, int size, object user_data)
         {
             uint address = (uint)addresslong;
             byte[] globalSprintfBuff = new byte[128];
@@ -1726,20 +1734,20 @@ namespace MT6252_Simulator_Sharp.Simalator
 
                 case 0x819f5b4:
                     changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R0);
-                    uc.MemRead(changeTmp1, globalSprintfBuff);
+                    globalSprintfBuff= uc.MemRead(changeTmp1, globalSprintfBuff.Length);
                     byte[] buftemp = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
                     Console.WriteLine($"kal_debug_print({System.Text.Encoding.UTF8.GetString(buftemp)})({lastAddress:x})");
                     break;
 
                 case 0x82D2A22: // mr_sprintf
-                    uc.MemRead(0xF028EDC4, globalSprintfBuff);
+                    globalSprintfBuff = uc.MemRead(0xF028EDC4, globalSprintfBuff.Length);
                     byte[] buftemp2 = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
                     Console.WriteLine($"mr_sprintf({System.Text.Encoding.UTF8.GetString(buftemp2)})");
                     break;
 
                 case 0x81a4d54:
                     changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R0);
-                    uc.MemRead(changeTmp1, globalSprintfBuff); 
+                    globalSprintfBuff = uc.MemRead(changeTmp1, globalSprintfBuff.Length); 
                     byte[] buftemp3 = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
                     Console.WriteLine($"dbg_print({System.Text.Encoding.UTF8.GetString(buftemp3)})[{lastAddress:X}]");
                     break;
@@ -1830,119 +1838,134 @@ namespace MT6252_Simulator_Sharp.Simalator
         }
 
 
-        private static void hookBlockCallBack(Unicorn uc, long addresslong, int size, object user_data)
+        private static void hookBlockCallBack(IBackend uc, long addresslong, int size, object user_data)
         {
             uint address = (uint)addresslong;
             VmEvent vmEvent;
-            int tmp = (int)user_data;
-            uint tmp2 = (uint)(tmp);
-            //Console.WriteLine("user_data " + user_data);
-            switch (tmp2)
+            uint tmp2 = 0;
+            if (user_data.GetType() == typeof(UInt32))
             {
-                case 4: // 中断恢复 
-                    RestoreCpuContext(ref isrStackList[--irq_nested_count]); 
-                    break;
-                case 5: // 回调恢复 
-                        RestoreCpuContext(ref stackCallback); 
-                    break;
-                case 7:
-                    // 过方法sub_87035D4 (0x4000801E)
-                    changeTmp = 1;
-                    uc.RegWrite( Arm.UC_ARM_REG_R0, changeTmp);
-
-                    break;
-                case 8: // 各种事件处理
-                    if (VmEventPtr > 0)
-                    {
-                        vmEvent = DequeueVMEvent();
-                        if (vmEvent != null)
+                tmp2 = (uint)(user_data);
+            }
+            else  if (user_data.GetType() == typeof(Int32))
+            { 
+                int tmp = (int)user_data;
+                tmp2 = (uint)(tmp);
+            }
+            else
+            {
+                Console.WriteLine($"not support: {user_data}");
+            }
+                //Console.WriteLine("user_data " + user_data);
+                switch (tmp2)
+                {
+                    case 4: // 中断恢复 
+                        if (irq_nested_count > 0)
                         {
-                            switch (vmEvent.Event)
+                            RestoreCpuContext(ref isrStackList[--irq_nested_count]); 
+                        }
+                        break;
+                    case 5: // 回调恢复 
+                        RestoreCpuContext(ref stackCallback);
+                        break;
+                    case 7:
+                        // 过方法sub_87035D4 (0x4000801E)
+                        changeTmp = 1;
+                        uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp);
+
+                        break;
+                    case 8: // 各种事件处理
+                        if (VmEventPtr > 0)
+                        {
+                            vmEvent = DequeueVMEvent();
+                            if (vmEvent != null)
                             {
-                                case VM_EVENT.VM_EVENT_KEYBOARD:
-                                    // 按键中断
-                                    if (StartInterrupt(8, address))
-                                        SimulatePressKey((byte)vmEvent.R0, (byte)vmEvent.R1);
-                                    else // 如果处理失败，重新入队
-                                        EnqueueVMEvent(vmEvent.Event, vmEvent.R0, vmEvent.R1);
-                                    break;
-                                case VM_EVENT.VM_EVENT_SIM_IRQ:
-                                    // 进入usim中断
-                                    changeTmp1 = vmEvent.R0;
-                                    if (vmEvent.R1 == 0)
-                                    {
-                                        uc.MemWrite( SIM1_IRQ_STATUS,Uint2Bytes( changeTmp1)); // 卡一
-                                        if (!StartInterrupt(5, address))
+                                switch (vmEvent.Event)
+                                {
+                                    case VM_EVENT.VM_EVENT_KEYBOARD:
+                                        // 按键中断
+                                        if (StartInterrupt(8, address))
+                                            SimulatePressKey((byte)vmEvent.R0, (byte)vmEvent.R1);
+                                        else // 如果处理失败，重新入队
+                                            EnqueueVMEvent(vmEvent.Event, vmEvent.R0, vmEvent.R1);
+                                        break;
+                                    case VM_EVENT.VM_EVENT_SIM_IRQ:
+                                        // 进入usim中断
+                                        changeTmp1 = vmEvent.R0;
+                                        if (vmEvent.R1 == 0)
+                                        {
+                                            uc.MemWrite(SIM1_IRQ_STATUS, Uint2Bytes(changeTmp1)); // 卡一
+                                            if (!StartInterrupt(5, address))
+                                            {
+                                                EnqueueVMEvent(vmEvent.Event, vmEvent.R0, vmEvent.R1);
+                                            }
+                                        }
+                                        if (vmEvent.R1 == 1)
+                                        {
+                                            uc.MemWrite(SIM2_IRQ_STATUS, Uint2Bytes(changeTmp1)); // 卡二 
+                                            if (!StartInterrupt(28, address))
+                                            {
+                                                EnqueueVMEvent(vmEvent.Event, vmEvent.R0, vmEvent.R1);
+                                            }
+                                        }
+                                        break;
+                                    case VM_EVENT.VM_EVENT_SIM_T0_TX_END:
+                                        if (vmEvent.R0 == 0)
+                                        {
+                                            HandleSimTxCmd(ref vm_sim1_dev, (byte)vmEvent.R0, vm_dma_sim1_config.TransferCount, vm_dma_sim1_config.DataAddr);
+                                        }
+                                        else if (vmEvent.R0 == 1)
+                                        {
+                                            HandleSimTxCmd(ref vm_sim2_dev, (byte)vmEvent.R0, vm_dma_sim2_config.TransferCount, vm_dma_sim2_config.DataAddr);
+                                        }
+                                        break;
+                                    case VM_EVENT.VM_EVENT_SIM_T0_RX_END:
+                                        if (vmEvent.R0 == 0)
+                                        {
+                                            HandleSimRxCmd(ref vm_sim1_dev, (byte)vmEvent.R0, vm_dma_sim1_config.TransferCount, vm_dma_sim1_config.DataAddr);
+                                        }
+                                        else if (vmEvent.R0 == 1)
+                                        {
+                                            HandleSimRxCmd(ref vm_sim2_dev, (byte)vmEvent.R0, vm_dma_sim2_config.TransferCount, vm_dma_sim2_config.DataAddr);
+                                        }
+                                        break;
+                                    case VM_EVENT.VM_EVENT_DMA_IRQ:
+                                        if (!StartInterrupt(6, address))
                                         {
                                             EnqueueVMEvent(vmEvent.Event, vmEvent.R0, vmEvent.R1);
                                         }
-                                    }
-                                    if (vmEvent.R1 == 1)
-                                    {
-                                        uc.MemWrite(SIM2_IRQ_STATUS, Uint2Bytes(changeTmp1)); // 卡二 
-                                        if (!StartInterrupt(28, address))
+                                        break;
+                                    case VM_EVENT.VM_EVENT_MSDC_IRQ:
+                                        /*
+                                        // todo 进入中断可以过多数据块读写的等待响应，但结果不正确
+                                        changeTmp1 = 2;
+                                        UcMemWrite(uc, 0x810e0008, ref changeTmp1, 4);
+                                        changeTmp1 = 0;
+                                        UcMemWrite(uc, 0x810e0010, ref changeTmp1, 4);
+                                        if (!StartInterrupt(0xd, address))
                                         {
                                             EnqueueVMEvent(vmEvent.Event, vmEvent.R0, vmEvent.R1);
-                                        }
-                                    }
-                                    break;
-                                case VM_EVENT.VM_EVENT_SIM_T0_TX_END:
-                                    if (vmEvent.R0 == 0)
-                                    {
-                                        HandleSimTxCmd(ref vm_sim1_dev, (byte)vmEvent.R0, vm_dma_sim1_config.TransferCount, vm_dma_sim1_config.DataAddr);
-                                    } 
-                                    else if (vmEvent.R0 == 1)
-                                    {
-                                        HandleSimTxCmd(ref vm_sim2_dev, (byte)vmEvent.R0, vm_dma_sim2_config.TransferCount, vm_dma_sim2_config.DataAddr);
-                                    }
-                                    break;
-                                case VM_EVENT.VM_EVENT_SIM_T0_RX_END:
-                                    if (vmEvent.R0 == 0)
-                                    {
-                                        HandleSimRxCmd(ref vm_sim1_dev, (byte)vmEvent.R0, vm_dma_sim1_config.TransferCount, vm_dma_sim1_config.DataAddr);
-                                    }
-                                    else if (vmEvent.R0 == 1)
-                                    {
-                                        HandleSimRxCmd(ref vm_sim2_dev, (byte)vmEvent.R0, vm_dma_sim2_config.TransferCount, vm_dma_sim2_config.DataAddr);
-                                    }
-                                    break;
-                                case VM_EVENT.VM_EVENT_DMA_IRQ:
-                                    if (!StartInterrupt(6, address))
-                                    {
-                                        EnqueueVMEvent(vmEvent.Event, vmEvent.R0, vmEvent.R1);
-                                    }
-                                    break;
-                                case VM_EVENT.VM_EVENT_MSDC_IRQ:
-                                    /*
-                                    // todo 进入中断可以过多数据块读写的等待响应，但结果不正确
-                                    changeTmp1 = 2;
-                                    UcMemWrite(uc, 0x810e0008, ref changeTmp1, 4);
-                                    changeTmp1 = 0;
-                                    UcMemWrite(uc, 0x810e0010, ref changeTmp1, 4);
-                                    if (!StartInterrupt(0xd, address))
-                                    {
-                                        EnqueueVMEvent(vmEvent.Event, vmEvent.R0, vmEvent.R1);
-                                    }*/
-                                    break;
-                                case VM_EVENT.VM_EVENT_GPT_IRQ:
-                                    // GPT中断
-                                    StartInterrupt(10, address);
-                                    break;
-                                case VM_EVENT.VM_EVENT_RTC_IRQ:
-                                    Update_RTC_Time();
-                                    StartInterrupt(14, address);
-                                    break;
-                                case VM_EVENT.VM_EVENT_Timer_IRQ:
-                                    // 定时中断2号中断线
-                                    StartInterrupt(2, address);
-                                    break;
-                                default:
-                                    break;
+                                        }*/
+                                        break;
+                                    case VM_EVENT.VM_EVENT_GPT_IRQ:
+                                        // GPT中断
+                                        StartInterrupt(10, address);
+                                        break;
+                                    case VM_EVENT.VM_EVENT_RTC_IRQ:
+                                        Update_RTC_Time();
+                                        StartInterrupt(14, address);
+                                        break;
+                                    case VM_EVENT.VM_EVENT_Timer_IRQ:
+                                        // 定时中断2号中断线
+                                        StartInterrupt(2, address);
+                                        break;
+                                    default:
+                                        break;
+                                }
                             }
                         }
-                    }
-                    break;
-            }
+                        break;
+                }
         }
 
         static  void SaveCpuContext(ref uint[] stackCallbackPtr, uint backAddr)
@@ -1967,7 +1990,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             stackCallbackPtr[16] = backAddr;
         }
 
-        private  static void uc_reg_read_batch(Unicorn uc, int[] regs, ref uint[] stackCallbackPtr,int start,int count)
+        private  static void uc_reg_read_batch(IBackend uc, int[] regs, ref uint[] stackCallbackPtr,int start,int count)
         {
             for (int i = 0; i < count; i++)
             {
@@ -1991,7 +2014,7 @@ namespace MT6252_Simulator_Sharp.Simalator
 
         }
 
-        private static void uc_reg_write_batch(Unicorn uc, int[] regs, ref uint[] v2stackCallback , int count)
+        private static void uc_reg_write_batch(IBackend uc, int[] regs, ref uint[] v2stackCallback , int count)
         { 
             for(int i = 0; i < count; i++)
             {
@@ -2023,13 +2046,13 @@ namespace MT6252_Simulator_Sharp.Simalator
                 {
                     changeTmp1 = (uint)(CPU_ISR_CB_ADDRESS + 4); 
                     SaveCpuContext(ref isrStackList[irq_nested_count++],lastAddr); 
-                    MTK.RegWrite(Arm.UC_ARM_REG_LR, Uint2Bytes(changeTmp1));// LR更新为特殊寄存器 
+                    MTK.RegWrite(Arm.UC_ARM_REG_LR, changeTmp1);// LR更新为特殊寄存器 
                     changeTmp1 = (uint)irq_line;
 
                     MTK.MemWrite(IRQ_Status, Uint2Bytes(changeTmp1));
                     changeTmp1 = IRQ_HANDLER;
                     // 跳转到中断入口
-                    MTK.RegWrite(Arm.UC_ARM_REG_PC, Uint2Bytes(changeTmp1));
+                    MTK.RegWrite(Arm.UC_ARM_REG_PC, changeTmp1);
                     //Console.WriteLine("true");
                     return true;
                 }
@@ -2280,7 +2303,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             }
         }
 
-        public static void uc_mem_write(Unicorn uc,uint rTC_IRQ_STATUS,byte[]  data, int count)
+        public static void uc_mem_write(IBackend uc,uint rTC_IRQ_STATUS,byte[]  data, int count)
         {
             byte[] bytes = data.Take(count).ToArray();
             //Console.WriteLine($"uc_mem_write {rTC_IRQ_STATUS:x}");
@@ -2391,7 +2414,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             uc_mem_write(MTK, 0x810b002c, ref changeTmp1, 4); // 年
         }
 
-        private static void uc_mem_write(Unicorn uc, uint rTC_IRQ_STATUS, ref uint changeTmp1, int count)
+        private static void uc_mem_write(IBackend uc, uint rTC_IRQ_STATUS, ref uint changeTmp1, int count)
         {
             uc.MemWrite(rTC_IRQ_STATUS, Uint2Bytes(changeTmp1,count));
         }
@@ -2408,22 +2431,18 @@ namespace MT6252_Simulator_Sharp.Simalator
         //    //changeTmp1 = Bytes2Uint(tmpbytes); 
         //    uc.MemRead(address, Uint2Bytes(changeTmp1)); 
         //}
-        private static void uc_mem_read(Unicorn uc, uint address, ref uint changeTmp1, int count)
+        private static void uc_mem_read(IBackend uc, uint address, ref uint changeTmp1, int count)
         {
-            //Console.WriteLine($"uc_mem_read {address:x}");
-            byte[] tmpbytes = new byte[count];
-            uc.MemRead(address, tmpbytes);
+            //Console.WriteLine($"uc_mem_read {address:x}"); 
+            byte[] tmpbytes = uc.MemRead(address, count);
             changeTmp1 = Bytes2Uint(tmpbytes);
 
             //uc.MemRead(address, Uint2Bytes(changeTmp1,count));
         }
 
-        private static void uc_mem_read(Unicorn uc, uint address, ref byte[] changeTmp1, uint count)
-        {
-            byte[] tmpbytes = new byte[count];
-
-            //Console.WriteLine($"uc_mem_read {address:x}");
-            uc.MemRead(address, tmpbytes);
+        private static void uc_mem_read(IBackend uc, uint address, ref byte[] changeTmp1, uint count)
+        { 
+            byte[] tmpbytes = uc.MemRead(address, count);
             for (int i = 0; i < count; i++)
             {
                 changeTmp1[i] = tmpbytes[i];
@@ -2735,8 +2754,8 @@ namespace MT6252_Simulator_Sharp.Simalator
                         uint pz = LCD_Layer_Address[li];
                         if (pz > 0)
                         {
-                            // Read screen buffer from emulated memory 
-                            MTK.MemRead(pz, screenBuffer);
+                        // Read screen buffer from emulated memory 
+                        screenBuffer=  MTK.MemRead(pz, LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * 2);
                         datas[li] = screenBuffer;
                     //// Lock bitmap data for direct access
                     //BitmapData bmpData = bmp.LockBits(

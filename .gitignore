@@ -13,3 +13,4 @@ bin
 Rom/fat32.img
 Rom/08000000.bin.til
 fat32.img
+MT6252_Simulator_Sharp_netcore/dynarmic.dll
