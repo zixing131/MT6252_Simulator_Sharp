@@ -1,5 +1,6 @@
 bin/*.exe
 *.o
+*.i64
 *.id0
 *.id1
 *.id2
@@ -11,3 +12,4 @@ bin
 *.user
 Rom/fat32.img
 Rom/08000000.bin.til
+fat32.img

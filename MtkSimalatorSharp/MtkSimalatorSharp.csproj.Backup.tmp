@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net8.0;net46</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>latest</LangVersion>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<Platforms>AnyCPU;x86</Platforms>
+	</PropertyGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net46'">
+		<Reference Include="System.Runtime" />
+		<Reference Include="System.Threading.Tasks" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\UnicornEngine\UnicornEngine.fsproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Reference Include="UnicornEngine">
+	    <HintPath>UnicornEngine.dll</HintPath>
+	  </Reference>
+	</ItemGroup>
+
+</Project>
