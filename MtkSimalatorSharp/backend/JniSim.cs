@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace MtkSimalatorSharp.backend
 {
-     
+
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate IntPtr NewGlobalRefDelegate(IntPtr env, IntPtr obj);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -26,11 +26,17 @@ namespace MtkSimalatorSharp.backend
     //(*env)->ReleaseByteArrayElements(env, bytes, array, JNI_ABORT);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate IntPtr ReleaseByteArrayElementsDelegate(IntPtr env, IntPtr bytes,IntPtr array, IntPtr b);
-    
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate int GetArrayLengthDelegate(IntPtr env, IntPtr data);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int RegisterNativesDelegate(IntPtr env, IntPtr classdata, IntPtr s_methods, int len);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int ExceptionCheckDelegate(IntPtr env);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int GetMethodIDDelegate(IntPtr env, IntPtr classdata, string methodname, string signature);
 
+    
     [StructLayout(LayoutKind.Explicit)]
     public struct JNINativeInterface_
     {
@@ -45,21 +51,72 @@ namespace MtkSimalatorSharp.backend
         [FieldOffset(0x70)] public ThrowNewDelegate ThrowNew;
         [FieldOffset(0xA8)] public NewGlobalRefDelegate NewGlobalRef;
         [FieldOffset(0xB0)] public DeleteGlobalRefDelegate DeleteGlobalRef;
+        //00000108     jmethodID (*GetMethodID)(JNIEnv *, jclass, const char *, const char *); 
+        [FieldOffset(0x108)] public GetMethodIDDelegate GetMethodID;
         //00000558     jsize (*GetArrayLength)(JNIEnv *, jarray); 
         [FieldOffset(0x558)] public GetArrayLengthDelegate GetArrayLength;
         //000005C0 jbyte *(* GetByteArrayElements) (JNIEnv*, jbyteArray, jboolean*);
         [FieldOffset(0x5C0)] public GetByteArrayElementsDelegate GetByteArrayElements;
         // 00000600     void (* ReleaseByteArrayElements) (JNIEnv*, jbyteArray, jbyte*, jint); 
         [FieldOffset(0x600)] public ReleaseByteArrayElementsDelegate ReleaseByteArrayElements;
-
+        //000006B8     jint (*RegisterNatives)(JNIEnv *, jclass, const JNINativeMethod *, jint);
+        [FieldOffset(0x6B8)] public RegisterNativesDelegate RegisterNatives;
+        //00000720     jboolean(*ExceptionCheck)(JNIEnv*); 
+        [FieldOffset(0x720)] public ExceptionCheckDelegate ExceptionCheck;
         [FieldOffset(0x738)] public GetDirectBufferCapacityDelegate GetDirectBufferCapacity;
     }
+
+    //    00000000 struct JNIInvokeInterface // sizeof=0x40
+    //00000000 {
+    //00000000     void* reserved0;
+    //00000008     void* reserved1;
+    //00000010     void* reserved2;
+    //00000018     jint(*DestroyJavaVM)(JavaVM*);
+    //00000020     jint(*AttachCurrentThread)(JavaVM*, JNIEnv**, void*);
+    //00000028     jint(*DetachCurrentThread)(JavaVM*);
+    //00000030     jint(*GetEnv)(JavaVM*, void**, jint);
+    //00000038     jint(*AttachCurrentThreadAsDaemon)(JavaVM*, JNIEnv**, void*);
+    //00000040 };
+
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int DestroyJavaVMDelegate(IntPtr jvm);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int AttachCurrentThreadDelegate(IntPtr jvm, IntPtr env,IntPtr none);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int DetachCurrentThreadDelegate(IntPtr jvm);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int GetEnvDelegate(IntPtr jvm, ref IntPtr env, int JNI_VERSION_1_6);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int AttachCurrentThreadAsDaemonDelegate(IntPtr jvm, IntPtr data);
+
+    [StructLayout(LayoutKind.Explicit)]
+    public struct JNIInvokeInterface
+    {
+        // 保留字段
+        [FieldOffset(0x00)] private IntPtr reserved0;
+        [FieldOffset(0x08)] private IntPtr reserved1;
+        [FieldOffset(0x10)] private IntPtr reserved2;
+        [FieldOffset(0x18)] public DestroyJavaVMDelegate DestroyJavaVM;
+        [FieldOffset(0x20)] public AttachCurrentThreadDelegate AttachCurrentThread;
+        [FieldOffset(0x28)] public DetachCurrentThreadDelegate DetachCurrentThread;
+        [FieldOffset(0x30)] public GetEnvDelegate GetEnv;
+        [FieldOffset(0x38)] public AttachCurrentThreadAsDaemonDelegate AttachCurrentThreadAsDaemon;
+          
+    }
+
 
     [StructLayout(LayoutKind.Sequential)]
     public struct JNIEnv
     {
         public IntPtr functions; // 指向 JNINativeInterface_ 的指针
     } 
+
+
+
     /// <summary>
     /// maybe is a jbytes
     /// </summary>
@@ -124,9 +181,59 @@ namespace MtkSimalatorSharp.backend
         } 
     } 
 
-    public class JniSIm
+    /// <summary>
+    /// Jobject载体，实际上托载了一个函数
+    /// </summary>
+    public struct Jobject
+    {
+        NewHook newhook;
+        public Jobject(NewHook newhook)
+        {
+            this.newhook = newhook;
+        }
+
+        /// <summary>
+        /// 从 IntPtr 还原 Jobject（非托管内存指针 -> 托管结构体）
+        /// </summary>
+        public static Jobject FromIntPtr(IntPtr ptr)
+        {
+            if (ptr == IntPtr.Zero)
+                return default(Jobject);
+
+            // 从指针位置读取结构体
+            return Marshal.PtrToStructure<Jobject>(ptr);
+        }
+
+        /// <summary>
+        /// 将 Jobject 转换为 IntPtr（托管结构体 -> 非托管内存指针）
+        /// </summary>
+        public IntPtr ToIntPtr()
+        {
+            // 分配非托管内存
+            IntPtr ptr = Marshal.AllocHGlobal(Marshal.SizeOf(this));
+
+            // 将结构体复制到非托管内存
+            Marshal.StructureToPtr(this, ptr, false);
+
+            return ptr;
+        }
+
+        // 可选：释放非托管内存的方法
+        public static void FreeIntPtr(IntPtr ptr)
+        {
+            if (ptr != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
+        }
+    }
+
+
+    public class JniSim
     {
 
+        public const int JNI_OK = 0;
+        public const int JNI_ERR = -1;
 
         // 静态保存委托防止被 GC 回收
         private static readonly NewGlobalRefDelegate _newGlobalRefImpl = NewGlobalRefImpl;
@@ -203,6 +310,70 @@ namespace MtkSimalatorSharp.backend
             GCHandle handle = GCHandle.Alloc(GCHandle.FromIntPtr(obj).Target);
             return GCHandle.ToIntPtr(handle);
         }
+        private static readonly GetEnvDelegate _newGetEnvImpl = GetEnvImpl;
+
+        private static int GetEnvImpl(IntPtr jvm,ref IntPtr env, int JNI_VERSION_1_6)
+        { 
+            Console.WriteLine("GetEnvImpl Called");
+
+            JNIEnv jnienv = new JNIEnv();
+
+            jnienv.functions = globaljnienv;
+            // 3. 将修改后的结构体写回指针
+            // 分配非托管内存
+            IntPtr ptr = Marshal.AllocHGlobal(Marshal.SizeOf(jnienv));
+
+            // 将结构体复制到非托管内存
+            Marshal.StructureToPtr(jnienv, ptr, false);
+
+            env = ptr;
+            //Marshal.StructureToPtr(jnienv, env, false); // false = 不释放旧内存
+
+            return JNI_OK;
+        }
+        static IntPtr globaljnienv;
+        public static IntPtr CreateMiniJvm()
+        {
+            var jvm = new JNIInvokeInterface();
+            jvm.GetEnv = _newGetEnvImpl;
+
+            // 将函数表分配到非托管内存
+            IntPtr jniFunctionsPtr = Marshal.AllocHGlobal(Marshal.SizeOf<JNIInvokeInterface>());
+            Marshal.StructureToPtr(jvm, jniFunctionsPtr, false);
+
+            // 创建 JNIEnv 实例（指向函数表）
+            JNIEnv jniEnv = new JNIEnv { functions = jniFunctionsPtr };
+
+            // 将 JNIEnv 实例分配到非托管内存（模拟 JNIEnv*）
+            IntPtr jniEnvPtr = Marshal.AllocHGlobal(Marshal.SizeOf<JNIEnv>());
+            Marshal.StructureToPtr(jniEnv, jniEnvPtr, false);
+            return jniEnvPtr;
+
+
+        }
+
+        private static readonly RegisterNativesDelegate _newRegisterNativesImpl = RegisterNativesImpl;
+
+        private static int RegisterNativesImpl(IntPtr env, IntPtr classdata, IntPtr s_methods, int len)
+        {
+            Console.WriteLine("RegisterNativesImpl Called");
+            return JNI_OK;
+        }
+
+        private static readonly ExceptionCheckDelegate _newExceptionCheckImpl = ExceptionCheckImpl;
+
+        private static int ExceptionCheckImpl(IntPtr env)
+        {
+            Console.WriteLine("ExceptionCheckImpl Called");
+            return JNI_OK;
+        }
+        private static readonly GetMethodIDDelegate _newGetMethodIDImpl = GetMethodIDImpl;
+
+        private static int GetMethodIDImpl(IntPtr env, IntPtr classdata, string methodname, string signature)
+        {
+            Console.WriteLine("GetMethodIDImpl Called " + methodname + " " + signature);
+            return JNI_OK;
+        }
 
         // 创建精简的 JNIEnv 实例
         public static IntPtr CreateMiniJNIEnv()
@@ -215,10 +386,16 @@ namespace MtkSimalatorSharp.backend
             env.GetByteArrayElements = _newGetByteArrayElementsImpl;
             env.GetArrayLength = _newGetArrayLengthImpl;
             env.ReleaseByteArrayElements = _newReleaseByteArrayElementsImpl;
+            env.RegisterNatives = _newRegisterNativesImpl;
+            env.ExceptionCheck = _newExceptionCheckImpl;
+            env.ExceptionCheck = _newExceptionCheckImpl;
+            env.GetMethodID = _newGetMethodIDImpl;
+            
 
             // 将函数表分配到非托管内存
             IntPtr jniFunctionsPtr = Marshal.AllocHGlobal(Marshal.SizeOf<JNINativeInterface_>());
             Marshal.StructureToPtr(env, jniFunctionsPtr, false);
+            globaljnienv = jniFunctionsPtr;
 
             // 创建 JNIEnv 实例（指向函数表）
             JNIEnv jniEnv = new JNIEnv { functions = jniFunctionsPtr };

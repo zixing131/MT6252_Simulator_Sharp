@@ -420,8 +420,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             {
                 stackCallback[i] = 0;
             }
-        }
-
+        } 
         /// <summary>
         /// 初始化模拟CPU引擎与内存
         /// </summary>
@@ -429,7 +428,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         {
             initData();
 
-            MTK = new UnicornJniNative(); 
+            MTK = new UnicornNative();
             MTK.nativeInitialize(Common.UC_ARCH_ARM, Common.UC_MODE_ARM);
 
 
@@ -437,8 +436,8 @@ namespace MT6252_Simulator_Sharp.Simalator
             RAM_MEMPOOL = malloc(size_8mb);
 
             // 映射寄存器
-            uc_mem_map_ptr(MTK, 0x80000000, size_8mb,Common. UC_PROT_ALL, malloc(size_8mb));
-             
+            uc_mem_map_ptr(MTK, 0x80000000, size_8mb, Common.UC_PROT_ALL, malloc(size_8mb));
+
             // GPIO_BASE_ADDRESS
             uc_mem_map_ptr(MTK, 0x81000000, size_1mb, Common.UC_PROT_ALL, malloc(size_1mb));
             uc_mem_map_ptr(MTK, TMDA_BASE, size_4mb, Common.UC_PROT_ALL, malloc(size_4mb));
@@ -477,26 +476,34 @@ namespace MT6252_Simulator_Sharp.Simalator
             // hook kal_fatal_error_handler
             // err = uc_hook_add(uc, &trace, UC_HOOK_CODE, hookCodeCallBack, 0, 0, 0xFFFFFFFF);
             // 中断
-            MTK.HookAddNewBlockHook(hookBlockCallBack, 4, CPU_ISR_CB_ADDRESS, CPU_ISR_CB_ADDRESS + 4);
-            // 回调
+            BlockCallBackClass hookBlockCallBack = new BlockCallBackClass();
+            MTK.HookAddNewBlockHook(hookBlockCallBack, 4, CPU_ISR_CB_ADDRESS, CPU_ISR_CB_ADDRESS + 4); 
+
             MTK.HookAddNewBlockHook(hookBlockCallBack,  5, CPU_ISR_CB_ADDRESS + 8, CPU_ISR_CB_ADDRESS + 12);
 
             MTK.HookAddNewBlockHook(hookBlockCallBack, 7, 0x4000801E, 0x4000801F);
 
-            MTK.HookAddNewBlockHook(hookBlockCallBack, 8, 0, 0xffffffff);
+            MTK.HookAddNewBlockHook(hookBlockCallBack, 8, 0, 0xffffffff); 
+
+
+            hookCodeCallBackClass hookCodeCallBack = new hookCodeCallBackClass();
 
             MTK.HookAddNewCodeHook(hookCodeCallBack, 0, 0x08000000, 0x09000000);
 
-            MTK.HookAddNewReadHook(hookRamCallBack, 0, 0x80000000, 0xA2000000);
 
-            MTK.HookAddNewReadHook(hookRamCallBack, 0, 0x5f288, 0x5f888);
+            ReadHookClass readhook = new ReadHookClass();
 
-            MTK.HookAddNewWriteHook(hookRamCallBack, 1, 0x78000000, 0x78f00000);
+            MTK.HookAddNewReadHook(readhook, 0, 0x80000000, 0xA2000000);
 
-            MTK.HookAddNewWriteHook(hookRamCallBack, 1, 0x80000000, 0x81ffffff);
+            MTK.HookAddNewReadHook(readhook, 0, 0x5f288, 0x5f888);
 
-            MTK.HookAddNewWriteHook(hookRamCallBack, 1, 0x90000000, 0x91000000);
-            MTK.HookAddNewWriteHook(hookRamCallBack, 1, 0xf0000000, 0xf2000000);
+            WriteHookClass writehook = new WriteHookClass();
+            MTK.HookAddNewWriteHook(writehook, 1, 0x78000000, 0x78f00000);
+
+            MTK.HookAddNewWriteHook(writehook, 1, 0x80000000, 0x81ffffff);
+
+            MTK.HookAddNewWriteHook(writehook, 1, 0x90000000, 0x91000000);
+            MTK.HookAddNewWriteHook(writehook, 1, 0xf0000000, 0xf2000000);
 
             //            uc_mem_write 810a0800
             //uc_mem_write 878009b
@@ -510,7 +517,8 @@ namespace MT6252_Simulator_Sharp.Simalator
             //0xC0000005 error 
 
             //uc_mem_map_ptr(MTK, 0xC0000000, size_1mb, Common.UC_PROT_ALL, IntPtr.Zero);
-            MTK.HookAddNewEventMemHook(EventMemHook, Common.UC_HOOK_MEM_READ_UNMAPPED | Common.UC_HOOK_MEM_WRITE_UNMAPPED | Common.UC_HOOK_MEM_FETCH_UNMAPPED, 0);
+            EventMemHookClass eventMemHook = new EventMemHookClass();
+            MTK.HookAddNewEventMemHook(eventMemHook, Common.UC_HOOK_MEM_READ_UNMAPPED | Common.UC_HOOK_MEM_WRITE_UNMAPPED | Common.UC_HOOK_MEM_FETCH_UNMAPPED, 0);
             //MTK.AddInterruptHook(InterruptHook);
             //MTK.AddMemWriteHook();
 
@@ -533,20 +541,34 @@ namespace MT6252_Simulator_Sharp.Simalator
             Console.WriteLine($"异常 InterruptHook");
         }
 
-        static bool EventMemHook(IBackend backend, int unmappedType, long address, int size, long value, object userdata)
+        public class EventMemHookClass: IEventMemHook
         {
-            Console.WriteLine($"异常 type ={unmappedType} address = {address:x} size={size} value={value:x}");
-            return true;
+            public bool hook(IBackend backend,long address, int size, long value, object userdata)
+            {
+                Console.WriteLine($"异常 userdata ={userdata} address = {address:x} size={size} value={value:x}");
+                return true;
+            }
         }
-        private static void hookRamCallBack(IBackend backend, long address, int size,long value, object userData)
-        {
+     
+       
 
-            hookRamCallBack(backend, 1, (uint)address, size, (uint)value, userData);
+        public class ReadHookClass: IReadHook
+        {
+           public void hook(IBackend backend, long address, int size, object userData)
+            {
+                hookRamCallBack(backend, 16, (uint)address, size, 0, userData);
+            }
+
         }
 
-        private static void hookRamCallBack(IBackend backend, long address, int size, object userData)
+
+        public class WriteHookClass : IWriteHook
         {
-            hookRamCallBack(backend, 16, (uint)address, size, 0, userData);
+            public void hook(IBackend backend, long address, int size, long value, object userData)
+            {
+
+                hookRamCallBack(backend, 1, (uint)address, size, (uint)value, userData);
+            }
         }
 
         static uint lastAddress = 0;
@@ -1699,133 +1721,135 @@ namespace MT6252_Simulator_Sharp.Simalator
         //}
 
 
-
-        private static void hookCodeCallBack(IBackend uc, long addresslong, int size, object user_data)
+        public class hookCodeCallBackClass : ICodeHook
         {
-            uint address = (uint)addresslong;
-            byte[] globalSprintfBuff = new byte[128];
-
-            uint lastSIM_DMA_ADDR = 0;
-
-            //Console.WriteLine($"address = ({address:X})");
-            bool isdef = false;
-            switch (address)
+            public void hook(IBackend uc, long addresslong, int size, object user_data)
             {
-                case 0x8370220: // 直接返回开机流程任务全部完成
-                    changeTmp1 = 1;
-                    uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp1);
-                    break;
+                uint address = (uint)addresslong;
+                byte[] globalSprintfBuff = new byte[128];
 
-                case 0x81b38d0:
-                    changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R1);
-                    Console.WriteLine($"l1audio_sethandler({changeTmp1:x})");
-                    break;
+                uint lastSIM_DMA_ADDR = 0;
 
-                case 0x8087256:
-                    changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R0);
-                    Console.WriteLine($"sim_check_status v26({changeTmp1:x})");
-                    break;
+                //Console.WriteLine($"address = ({address:X})");
+                bool isdef = false;
+                switch (address)
+                {
+                    case 0x8370220: // 直接返回开机流程任务全部完成
+                        changeTmp1 = 1;
+                        uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp1);
+                        break;
 
-                case 0x80D2EE0:
-                    changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R2);
-                    lastSIM_DMA_ADDR = changeTmp1;
-                    Console.WriteLine($"SIM_CMD(r0,r1,rx_result:{changeTmp1:x})");
-                    break;
+                    case 0x81b38d0:
+                        changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R1);
+                        Console.WriteLine($"l1audio_sethandler({changeTmp1:x})");
+                        break;
 
-                case 0x819f5b4:
-                    changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R0);
-                    globalSprintfBuff= uc.MemRead(changeTmp1, globalSprintfBuff.Length);
-                    byte[] buftemp = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
-                    Console.WriteLine($"kal_debug_print({System.Text.Encoding.UTF8.GetString(buftemp)})({lastAddress:x})");
-                    break;
+                    case 0x8087256:
+                        changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R0);
+                        Console.WriteLine($"sim_check_status v26({changeTmp1:x})");
+                        break;
 
-                case 0x82D2A22: // mr_sprintf
-                    globalSprintfBuff = uc.MemRead(0xF028EDC4, globalSprintfBuff.Length);
-                    byte[] buftemp2 = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
-                    Console.WriteLine($"mr_sprintf({System.Text.Encoding.UTF8.GetString(buftemp2)})");
-                    break;
+                    case 0x80D2EE0:
+                        changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R2);
+                        lastSIM_DMA_ADDR = changeTmp1;
+                        Console.WriteLine($"SIM_CMD(r0,r1,rx_result:{changeTmp1:x})");
+                        break;
 
-                case 0x81a4d54:
-                    changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R0);
-                    globalSprintfBuff = uc.MemRead(changeTmp1, globalSprintfBuff.Length); 
-                    byte[] buftemp3 = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
-                    Console.WriteLine($"dbg_print({System.Text.Encoding.UTF8.GetString(buftemp3)})[{lastAddress:X}]");
-                    break;
+                    case 0x819f5b4:
+                        changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R0);
+                        globalSprintfBuff = uc.MemRead(changeTmp1, globalSprintfBuff.Length);
+                        byte[] buftemp = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
+                        Console.WriteLine($"kal_debug_print({System.Text.Encoding.UTF8.GetString(buftemp)})({lastAddress:x})");
+                        break;
 
-                case 0x83D1C28: // mr_mem_get()
-                    changeTmp1 = 0;
-                    uc.MemWrite(0xF0166068, Uint2Bytes((uint)changeTmp1));
-                    break;
+                    case 0x82D2A22: // mr_sprintf
+                        globalSprintfBuff = uc.MemRead(0xF028EDC4, globalSprintfBuff.Length);
+                        byte[] buftemp2 = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
+                        Console.WriteLine($"mr_sprintf({System.Text.Encoding.UTF8.GetString(buftemp2)})");
+                        break;
 
-                case 0x83890C8:
-                    // srv_charbat_get_charger_status默认返回1，是充电状态
-                    changeTmp1 = 1;
-                    uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp1);
-                    break;
+                    case 0x81a4d54:
+                        changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R0);
+                        globalSprintfBuff = uc.MemRead(changeTmp1, globalSprintfBuff.Length);
+                        byte[] buftemp3 = globalSprintfBuff.TakeWhile(b => b != 0).ToArray();
+                        Console.WriteLine($"dbg_print({System.Text.Encoding.UTF8.GetString(buftemp3)})[{lastAddress:X}]");
+                        break;
 
-                case 0x80E7482:
-                    // 强制过 nvram_util_caculate_checksum检测
-                    changeTmp = uc_reg_read(Arm.UC_ARM_REG_R0);
-                    changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R2);
-                    uc.RegWrite(Arm.UC_ARM_REG_R2, changeTmp);
-                    break;
+                    case 0x83D1C28: // mr_mem_get()
+                        changeTmp1 = 0;
+                        uc.MemWrite(0xF0166068, Uint2Bytes((uint)changeTmp1));
+                        break;
 
-                case 0x8093FB2: // 强制过8093ffa方法
-                    changeTmp = 1;
-                    uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp);
-                    break;
+                    case 0x83890C8:
+                        // srv_charbat_get_charger_status默认返回1，是充电状态
+                        changeTmp1 = 1;
+                        uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp1);
+                        break;
 
-                case 0x80D2CA4:
-                    // 过sub_80D2CA4
-                    changeTmp = uc_reg_read(Arm.UC_ARM_REG_R5);
-                    changeTmp2 = 0xff;
-                    //Console.WriteLine($"过sub_80D2CA4 {changeTmp:x}");
-                    uc.MemWrite(changeTmp + 3, Uint2Bytes(changeTmp2,1));
-                    break;
+                    case 0x80E7482:
+                        // 强制过 nvram_util_caculate_checksum检测
+                        changeTmp = uc_reg_read(Arm.UC_ARM_REG_R0);
+                        changeTmp1 = uc_reg_read(Arm.UC_ARM_REG_R2);
+                        uc.RegWrite(Arm.UC_ARM_REG_R2, changeTmp);
+                        break;
 
-                case 0x80601ec:
-                case 0x80601ac: // 过sub_8060194的while(L1D_WIN_Init_SetCommonEvent)
-                    changeTmp = uc_reg_read(Arm.UC_ARM_REG_R0); 
-                    //Console.WriteLine($"0x80601ac = ({changeTmp:x})");
-                    byte[] tmp = Uint2Bytes(changeTmp, 4);
-                    //Console.WriteLine($"0x80601ac = ({tmp[0]:x})");
-                    uc.MemWrite(TMDA_BASE, Uint2Bytes(changeTmp,4));
-                    break;
+                    case 0x8093FB2: // 强制过8093ffa方法
+                        changeTmp = 1;
+                        uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp);
+                        break;
 
-                case 0x8223F66: //过sub_8223f5c(L1层的) 暂时去不掉
-                    changeTmp = 0;
-                    uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp);
-                    break;
+                    case 0x80D2CA4:
+                        // 过sub_80D2CA4
+                        changeTmp = uc_reg_read(Arm.UC_ARM_REG_R5);
+                        changeTmp2 = 0xff;
+                        //Console.WriteLine($"过sub_80D2CA4 {changeTmp:x}");
+                        uc.MemWrite(changeTmp + 3, Uint2Bytes(changeTmp2, 1));
+                        break;
 
-                case 0x800DA28: // 暂时去不掉
-                    changeTmp = 0;
-                    uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp);
-                    //Console.WriteLine($"0x800DA28({changeTmp:x})"); 
-                    break;
+                    case 0x80601ec:
+                    case 0x80601ac: // 过sub_8060194的while(L1D_WIN_Init_SetCommonEvent)
+                        changeTmp = uc_reg_read(Arm.UC_ARM_REG_R0);
+                        //Console.WriteLine($"0x80601ac = ({changeTmp:x})");
+                        byte[] tmp = Uint2Bytes(changeTmp, 4);
+                        //Console.WriteLine($"0x80601ac = ({tmp[0]:x})");
+                        uc.MemWrite(TMDA_BASE, Uint2Bytes(changeTmp, 4));
+                        break;
 
-                default:
-                    isdef = true;
-                    break;
+                    case 0x8223F66: //过sub_8223f5c(L1层的) 暂时去不掉
+                        changeTmp = 0;
+                        uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp);
+                        break;
+
+                    case 0x800DA28: // 暂时去不掉
+                        changeTmp = 0;
+                        uc.RegWrite(Arm.UC_ARM_REG_R0, changeTmp);
+                        //Console.WriteLine($"0x800DA28({changeTmp:x})"); 
+                        break;
+
+                    default:
+                        isdef = true;
+                        break;
+                }
+                //if (isdef == false)
+                //{
+                //    Console.WriteLine($"address({address:x})");
+                //}
+                //else
+                //{ 
+                //    Console.WriteLine($"address({address:x})");
+                //}
+
+                //if(address== 0x8002e38)
+                //{
+                //    Console.WriteLine($"address({address:x})");
+                //}
+                //if (address == 0x81b466c)
+                //{
+                //    Console.WriteLine($"address({address:x})");
+                //}
+
+                lastAddress = address;
             }
-            //if (isdef == false)
-            //{
-            //    Console.WriteLine($"address({address:x})");
-            //}
-            //else
-            //{ 
-            //    Console.WriteLine($"address({address:x})");
-            //}
-
-            //if(address== 0x8002e38)
-            //{
-            //    Console.WriteLine($"address({address:x})");
-            //}
-            //if (address == 0x81b466c)
-            //{
-            //    Console.WriteLine($"address({address:x})");
-            //}
-
-            lastAddress = address;
         }
 
         private static uint uc_reg_read(int reg)
@@ -1837,32 +1861,33 @@ namespace MT6252_Simulator_Sharp.Simalator
             value = (uint)MTK.RegRead(reg);
         }
 
-
-        private static void hookBlockCallBack(IBackend uc, long addresslong, int size, object user_data)
-        {
-            uint address = (uint)addresslong;
-            VmEvent vmEvent;
-            uint tmp2 = 0;
-            if (user_data.GetType() == typeof(UInt32))
+        public class BlockCallBackClass:IBlockHook
+        { 
+            public void hook(IBackend uc, long addresslong, int size, object user_data)
             {
-                tmp2 = (uint)(user_data);
-            }
-            else  if (user_data.GetType() == typeof(Int32))
-            { 
-                int tmp = (int)user_data;
-                tmp2 = (uint)(tmp);
-            }
-            else
-            {
-                Console.WriteLine($"not support: {user_data}");
-            }
-             // Console.WriteLine("user_data " + user_data);
+                uint address = (uint)addresslong;
+                VmEvent vmEvent;
+                uint tmp2 = 0;
+                if (user_data.GetType() == typeof(UInt32))
+                {
+                    tmp2 = (uint)(user_data);
+                }
+                else if (user_data.GetType() == typeof(Int32))
+                {
+                    int tmp = (int)user_data;
+                    tmp2 = (uint)(tmp);
+                }
+                else
+                {
+                    Console.WriteLine($"not support: {user_data}");
+                }
+                // Console.WriteLine("user_data " + user_data);
                 switch (tmp2)
                 {
                     case 4: // 中断恢复 
                         if (irq_nested_count > 0)
                         {
-                            RestoreCpuContext(ref isrStackList[--irq_nested_count]); 
+                            RestoreCpuContext(ref isrStackList[--irq_nested_count]);
                         }
                         break;
                     case 5: // 回调恢复 
@@ -1966,7 +1991,9 @@ namespace MT6252_Simulator_Sharp.Simalator
                         }
                         break;
                 }
+            }
         }
+        
 
         static  void SaveCpuContext(ref uint[] stackCallbackPtr, uint backAddr)
         {

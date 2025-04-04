@@ -1,11 +1,9 @@
-﻿using Microsoft.FSharp.Core;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
-using UnicornEngine;
+using System.Threading.Tasks; 
 using static MtkSimalatorSharp.backend.IBackend; 
 
 namespace MtkSimalatorSharp.backend
@@ -62,7 +60,7 @@ namespace MtkSimalatorSharp.backend
 
         }
 
-        public void DebuggerAddDebugHook(IBackend.NativeDebugHook callback, object userData, long begin, long end)
+        public void DebuggerAddDebugHook(IDebugHook callback, object userData, long begin, long end)
         {
 
         }
@@ -103,13 +101,13 @@ namespace MtkSimalatorSharp.backend
 
         internal delegate void CodeHookInternal(IntPtr a, long b, int c, IntPtr d);
 
-        internal static List<Tuple<IBackend.NativeCodeHook, Tuple<IntPtr, object, object>>> _codeHooks = new List<Tuple<NativeCodeHook, Tuple<nint, object, object>>>();
+        internal static List<Tuple<ICodeHook, Tuple<IntPtr, object, object>>> _codeHooks = new List<Tuple<ICodeHook, Tuple<nint, object, object>>>();
 
         [Serializable]
         [StructLayout(LayoutKind.Auto, CharSet = CharSet.Auto)]
         internal sealed class codeHookInternal_155
         {
-            public codeHookInternal_155(IBackend @this, NativeCodeHook callback, object userData)
+            public codeHookInternal_155(IBackend @this, ICodeHook callback, object userData)
             {
                 this.@this = @this;
                 this.callback = callback;
@@ -118,17 +116,17 @@ namespace MtkSimalatorSharp.backend
             
             internal void Invoke(IntPtr delegateArg0, long delegateArg1, int delegateArg2, IntPtr delegateArg3)
             {
-                this.callback(this.@this, delegateArg1, delegateArg2, this.userData);
+                this.callback.hook(this.@this, delegateArg1, delegateArg2, this.userData);
             }
 
             public IBackend @this;
 
-            public NativeCodeHook callback;
+            public ICodeHook callback;
 
             public object userData;
         }
 
-        public unsafe void HookAddNewCodeHook(IBackend.NativeCodeHook callback, object userData, long begin, long end)
+        public unsafe void HookAddNewCodeHook(ICodeHook callback, object userData, long begin, long end)
         {
             CodeHookInternal codeHookInternal = new CodeHookInternal(new codeHookInternal_155(this, callback, userData).Invoke);
             IntPtr functionPointerForDelegate = Marshal.GetFunctionPointerForDelegate(codeHookInternal);
@@ -137,7 +135,7 @@ namespace MtkSimalatorSharp.backend
             if (errcode == 0 )
             {
                 IntPtr uintPtr2 = Marshal.ReadIntPtr(uintPtr);
-                _codeHooks.Add(new Tuple<NativeCodeHook, Tuple<IntPtr, object, object>>(callback, new Tuple<IntPtr, object, object>(uintPtr2, userData, codeHookInternal)));
+                _codeHooks.Add(new Tuple< ICodeHook, Tuple<IntPtr, object, object>>(callback, new Tuple<IntPtr, object, object>(uintPtr2, userData, codeHookInternal)));
                 return;
             }
             throw new Exception("HookAddNewCodeHook Exception");
@@ -148,13 +146,13 @@ namespace MtkSimalatorSharp.backend
 
         internal delegate void ReadHookInternal(IntPtr delegateArg0, int delegateArg1, long delegateArg2, int delegateArg3, IntPtr delegateArg4);
 
-        internal static List<Tuple<IBackend.NativeReadHook, Tuple<IntPtr, object, object>>> _ReadHooks = new List<Tuple<NativeReadHook, Tuple<nint, object, object>>>();
+        internal static List<Tuple<IReadHook, Tuple<IntPtr, object, object>>> _ReadHooks = new List<Tuple<IReadHook, Tuple<nint, object, object>>>();
 
         [Serializable]
         [StructLayout(LayoutKind.Auto, CharSet = CharSet.Auto)]
         internal sealed class ReadHookInternal_155
         {
-            public ReadHookInternal_155(IBackend @this, NativeReadHook callback,  object userData)
+            public ReadHookInternal_155(IBackend @this, IReadHook callback,  object userData)
             {
                 this.@this = @this;
                 this.callback = callback;
@@ -164,12 +162,12 @@ namespace MtkSimalatorSharp.backend
 
             internal void Invoke(IntPtr delegateArg0, int delegateArg1, long delegateArg2, int delegateArg3, IntPtr delegateArg4)
             {
-                this.callback(this.@this, delegateArg2, delegateArg3, this.userData);
+                this.callback.hook(this.@this, delegateArg2, delegateArg3, this.userData);
             }
 
             public IBackend @this;
 
-            public NativeReadHook callback;
+            public IReadHook callback;
 
             public object userData;
             public long address;
@@ -177,7 +175,7 @@ namespace MtkSimalatorSharp.backend
             public long value;
         } 
 
-        public unsafe void HookAddNewReadHook(IBackend.NativeReadHook callback, object userData, long begin, long end)
+        public unsafe void HookAddNewReadHook(IReadHook callback, object userData, long begin, long end)
         {
             ReadHookInternal ReadHookInternal = new ReadHookInternal(new ReadHookInternal_155(this, callback, userData).Invoke);
             IntPtr functionPointerForDelegate = Marshal.GetFunctionPointerForDelegate(ReadHookInternal);
@@ -186,7 +184,7 @@ namespace MtkSimalatorSharp.backend
             if (errcode == 0)
             {
                 IntPtr uintPtr2 = Marshal.ReadIntPtr(uintPtr);
-                _ReadHooks.Add(new Tuple<NativeReadHook, Tuple<IntPtr, object, object>>(callback, new Tuple<IntPtr, object, object>(uintPtr2, userData, ReadHookInternal)));
+                _ReadHooks.Add(new Tuple< IReadHook, Tuple<IntPtr, object, object>>(callback, new Tuple<IntPtr, object, object>(uintPtr2, userData, ReadHookInternal)));
                 return;
             }
         }
@@ -195,13 +193,13 @@ namespace MtkSimalatorSharp.backend
 
         internal delegate void BlockHookInternal(IntPtr delegateArg0, long delegateArg1, int delegateArg2, IntPtr delegateArg3);
 
-        internal static List<Tuple<IBackend.NativeBlockHook, Tuple<IntPtr, object, object>>> _BlockHooks = new List<Tuple<NativeBlockHook, Tuple<nint, object, object>>>();
+        internal static List<Tuple<IBlockHook, Tuple<IntPtr, object, object>>> _BlockHooks = new List<Tuple<IBlockHook, Tuple<nint, object, object>>>();
 
         [Serializable]
         [StructLayout(LayoutKind.Auto, CharSet = CharSet.Auto)]
         internal sealed class BlockHookInternal_155
         {
-            public BlockHookInternal_155(IBackend @this, NativeBlockHook callback, object userData)
+            public BlockHookInternal_155(IBackend @this, IBlockHook callback, object userData)
             {
                 this.@this = @this;
                 this.callback = callback;
@@ -211,15 +209,15 @@ namespace MtkSimalatorSharp.backend
 
             internal void Invoke(IntPtr delegateArg0, long delegateArg1, int delegateArg2, IntPtr delegateArg3)
             {
-                this.callback(this.@this, delegateArg1, delegateArg2, this.userData);
+                this.callback.hook(this.@this, delegateArg1, delegateArg2, this.userData);
             }
 
             public IBackend @this; 
-            public NativeBlockHook callback; 
+            public IBlockHook callback; 
             public object userData; 
         }
 
-        public unsafe void HookAddNewBlockHook(IBackend.NativeBlockHook callback, object userData, long begin, long end)
+        public unsafe void HookAddNewBlockHook(IBlockHook callback, object userData, long begin, long end)
         {
             BlockHookInternal BlockHookInternal = new BlockHookInternal(new BlockHookInternal_155(this, callback, userData).Invoke);
             IntPtr functionPointerForDelegate = Marshal.GetFunctionPointerForDelegate(BlockHookInternal);
@@ -228,7 +226,7 @@ namespace MtkSimalatorSharp.backend
             if (errcode == 0)
             {
                 IntPtr uintPtr2 = Marshal.ReadIntPtr(uintPtr);
-                _BlockHooks.Add(new Tuple<NativeBlockHook, Tuple<IntPtr, object, object>>(callback, new Tuple<IntPtr, object, object>(uintPtr2, userData, BlockHookInternal)));
+                _BlockHooks.Add(new Tuple<IBlockHook, Tuple<IntPtr, object, object>>(callback, new Tuple<IntPtr, object, object>(uintPtr2, userData, BlockHookInternal)));
                 return;
             }
             throw new Exception("HookAddNewBlockHook Exception");
@@ -240,13 +238,13 @@ namespace MtkSimalatorSharp.backend
 
         internal delegate void WriteHookInternal(IntPtr delegateArg0, int delegateArg1, long delegateArg2, int delegateArg3, long delegateArg4, IntPtr delegateArg5);
 
-        internal static List<Tuple<IBackend.NativeWriteHook, Tuple<IntPtr, object, object>>> _WriteHooks=new List<Tuple<NativeWriteHook, Tuple<nint, object, object>>>();
+        internal static List<Tuple<IWriteHook, Tuple<IntPtr, object, object>>> _WriteHooks=new List<Tuple<IWriteHook, Tuple<nint, object, object>>>();
 
         [Serializable]
         [StructLayout(LayoutKind.Auto, CharSet = CharSet.Auto)]
         internal sealed class WriteHookInternal_155
         {
-            public WriteHookInternal_155(IBackend @this, NativeWriteHook callback, object userData)
+            public WriteHookInternal_155(IBackend @this, IWriteHook callback, object userData)
             {
                 this.@this = @this;
                 this.callback = callback;
@@ -256,12 +254,12 @@ namespace MtkSimalatorSharp.backend
 
             internal void Invoke(IntPtr delegateArg0, int delegateArg1, long delegateArg2, int delegateArg3, long delegateArg4, IntPtr delegateArg5)
             {
-                this.callback(this.@this, delegateArg2, delegateArg3, delegateArg4, this.userData);
+                this.callback.hook(this.@this, delegateArg2, delegateArg3, delegateArg4, this.userData);
             }
 
             public IBackend @this;
 
-            public NativeWriteHook callback;
+            public IWriteHook callback;
 
             public object userData;
             public long address;
@@ -269,7 +267,7 @@ namespace MtkSimalatorSharp.backend
             public long value;
         }
 
-        public unsafe void HookAddNewWriteHook(IBackend.NativeWriteHook callback, object userData, long begin, long end)
+        public unsafe void HookAddNewWriteHook(IWriteHook callback, object userData, long begin, long end)
         {
             WriteHookInternal WriteHookInternal = new WriteHookInternal(new WriteHookInternal_155(this, callback, userData).Invoke);
             IntPtr functionPointerForDelegate = Marshal.GetFunctionPointerForDelegate(WriteHookInternal);
@@ -278,7 +276,7 @@ namespace MtkSimalatorSharp.backend
             if (errcode == 0)
             {
                 IntPtr uintPtr2 = Marshal.ReadIntPtr(uintPtr);
-                _WriteHooks.Add(new Tuple<NativeWriteHook, Tuple<IntPtr, object, object>>(callback, new Tuple<IntPtr, object, object>(uintPtr2, userData, WriteHookInternal)));
+                _WriteHooks.Add(new Tuple< IWriteHook, Tuple<IntPtr, object, object>>(callback, new Tuple<IntPtr, object, object>(uintPtr2, userData, WriteHookInternal)));
                 return;
             }
             throw new Exception("HookAddNewWriteHook Exception");
@@ -289,27 +287,26 @@ namespace MtkSimalatorSharp.backend
 
         internal delegate bool EventMemHookInternal(IntPtr delegateArg0, int delegateArg1, long delegateArg2, int delegateArg3, long delegateArg4, IntPtr delegateArg5);
 
-        internal static List<Tuple<IBackend.NativeEventMemHook, Tuple<IntPtr, object, object>>> _EventMemHooks=new List<Tuple<NativeEventMemHook, Tuple<nint, object, object>>>();
+        internal static List<Tuple<IEventMemHook, Tuple<IntPtr, object, object>>> _EventMemHooks=new List<Tuple<IEventMemHook, Tuple<nint, object, object>>>();
 
         [Serializable]
         [StructLayout(LayoutKind.Auto, CharSet = CharSet.Auto)]
         internal sealed class EventMemHookInternal_155
         {
-            public EventMemHookInternal_155(IBackend @this, NativeEventMemHook callback, object userData)
+            public EventMemHookInternal_155(IBackend @this, IEventMemHook callback, object userData)
             {
                 this.@this = @this;
                 this.callback = callback;
                 this.userData = userData;
 
-            }
-
+            } 
             internal bool Invoke(IntPtr delegateArg0, int delegateArg1, long delegateArg2, int delegateArg3, long delegateArg4, IntPtr delegateArg5)
             {
-                return this.callback(this.@this, delegateArg1, delegateArg2, delegateArg3, delegateArg4, this.userData);
+                return this.callback.hook(this.@this, delegateArg2, delegateArg3, delegateArg4, this.userData);
             }
             public IBackend @this;
 
-            public NativeEventMemHook callback;
+            public IEventMemHook callback;
 
             public object userData;
             public long address;
@@ -317,7 +314,7 @@ namespace MtkSimalatorSharp.backend
             public long value;
         }
 
-        public unsafe void HookAddNewEventMemHook(IBackend.NativeEventMemHook callback, int type, object userData)
+        public unsafe void HookAddNewEventMemHook(IEventMemHook callback, int type, object userData)
         {
             EventMemHookInternal EventMemHookInternal = new EventMemHookInternal(new EventMemHookInternal_155(this, callback, userData).Invoke);
             IntPtr functionPointerForDelegate = Marshal.GetFunctionPointerForDelegate(EventMemHookInternal);
@@ -326,13 +323,13 @@ namespace MtkSimalatorSharp.backend
             if (errcode == 0)
             {
                 IntPtr uintPtr2 = Marshal.ReadIntPtr(uintPtr);
-                _EventMemHooks.Add(new Tuple<NativeEventMemHook, Tuple<IntPtr, object, object>>(callback, new Tuple<IntPtr, object, object>(uintPtr2, userData, EventMemHookInternal)));
+                _EventMemHooks.Add(new Tuple<IEventMemHook, Tuple<IntPtr, object, object>>(callback, new Tuple<IntPtr, object, object>(uintPtr2, userData, EventMemHookInternal)));
                 return;
             }
             throw new Exception("HookAddNewEventMemHook Exception");
         }
 
-        public void HookAddNewInterruptHook(IBackend.NativeInterruptHook callback, object userData)
+        public void HookAddNewInterruptHook(IInterruptHook callback, object userData)
         {
             throw new NotImplementedException("HookAddNewInterruptHook Exception"); 
         }

@@ -40,19 +40,19 @@ namespace MtkSimalatorSharp.backend
 
         void RemoveJitCodeCache(long begin, long end);
 
-        void HookAddNewCodeHook(NativeCodeHook callback, object userData, long begin, long end);
+        void HookAddNewCodeHook(ICodeHook callback, object userData, long begin, long end);
 
-        void DebuggerAddDebugHook(NativeDebugHook callback, object userData, long begin, long end);
+        void DebuggerAddDebugHook(IDebugHook callback, object userData, long begin, long end);
 
-        void HookAddNewReadHook(NativeReadHook callback, object userData, long begin, long end);
+        void HookAddNewReadHook(IReadHook callback, object userData, long begin, long end);
 
-        void HookAddNewWriteHook(NativeWriteHook callback, object userData, long begin, long end);
+        void HookAddNewWriteHook(IWriteHook callback, object userData, long begin, long end);
 
-        void HookAddNewEventMemHook(NativeEventMemHook callback, int type, object userData);
+        void HookAddNewEventMemHook(IEventMemHook callback, int type, object userData);
 
-        void HookAddNewInterruptHook(NativeInterruptHook callback, object userData);
+        void HookAddNewInterruptHook(IInterruptHook callback, object userData);
 
-        void HookAddNewBlockHook(NativeBlockHook callback, object userData, long begin, long end);
+        void HookAddNewBlockHook(IBlockHook callback, object userData, long begin, long end);
 
         void EmuStart(long begin, long until, long timeout, long count);
 

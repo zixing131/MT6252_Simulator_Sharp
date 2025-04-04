@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -14,9 +15,18 @@ namespace MtkSimalatorSharp.backend
         private IntPtr _handle;
         private readonly Dictionary<long, BreakPoint> _breakpoints = new Dictionary<long, BreakPoint>();
 
+        static IntPtr envPtr;
+
+        static IntPtr jvmPtr;
+
         public void nativeInitialize(int arch, int mode)
-        {
-            envPtr = JniSIm.CreateMiniJNIEnv(); 
+        { 
+
+            envPtr = JniSim.CreateMiniJNIEnv();
+
+            jvmPtr = JniSim.CreateMiniJvm();
+
+            int jniload = JNI_OnLoad(jvmPtr, IntPtr.Zero);
 
             _handle = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_nativeInitialize(envPtr, IntPtr.Zero, arch, mode);
             if (_handle == IntPtr.Zero)
@@ -56,7 +66,7 @@ namespace MtkSimalatorSharp.backend
             Java_com_github_unidbg_arm_backend_unicorn_Unicorn_context_1save(envPtr, IntPtr.Zero, _handle.ToInt64(), context);
         }
 
-        public void DebuggerAddDebugHook(IBackend.NativeDebugHook callback, object userData, long begin, long end)
+        public void DebuggerAddDebugHook(IDebugHook callback, object userData, long begin, long end)
         {
             // 需要实现对应的回调处理
             Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerDebugger(
@@ -96,88 +106,114 @@ namespace MtkSimalatorSharp.backend
         }
 
         private readonly HookManager _hookManager = new();
-        public void HookAddNewCodeHook(IBackend.NativeCodeHook callback, object userData, long begin, long end)
+        public void HookAddNewCodeHook( ICodeHook callback, object userData, long begin, long end)
         {
-            NativeCodeHook nativeHook = (uc, address, size, _) =>
-            {
-                callback(uc,address, size, userData);
-            };
-             
-            var hookPtr = _hookManager.RegisterHook(callback, userData, nativeHook);
+            //NativeCodeHook nativeHook = (uc, address, size, _) =>
+            //{
+            //    callback(uc,address, size, userData);
+            //};
 
-            Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
-               envPtr, IntPtr.Zero, _handle.ToInt64(), 4 /* HOOK_CODE */, begin, end, hookPtr);
+            //var hookPtr = _hookManager.RegisterHook(callback, userData, nativeHook);
+
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), 4 /* HOOK_CODE */, begin, end, hookPtr);
+            NewHook newhook = new NewHook(callback, userData, this);
+            Jobject jobject = new Jobject(newhook);
+            var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+               envPtr, IntPtr.Zero, _handle.ToInt64(), 1024, begin, end, jobject.ToIntPtr());
+
         }
 
-        public void HookAddNewReadHook(IBackend.NativeReadHook callback, object userData, long begin, long end)
+        public void HookAddNewReadHook(IReadHook callback, object userData, long begin, long end)
         {
-            NativeReadHook nativeHook = (uc, address, size, _) =>
-            {
-                callback(uc,address, size, userData);
-            };
-             
+            //NativeReadHook nativeHook = (uc, address, size, _) =>
+            //{
+            //    callback(uc,address, size, userData);
+            //};
 
-            var hookPtr = _hookManager.RegisterHook(callback, userData, nativeHook);
 
-            Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
-               envPtr, IntPtr.Zero, _handle.ToInt64(), 1024 /* HOOK_READ */, begin, end, hookPtr);
+            //var hookPtr = _hookManager.RegisterHook(callback, userData, nativeHook);
+
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), 1024 /* HOOK_READ */, begin, end, hookPtr);
+            NewHook newhook = new NewHook(callback, userData, this);
+            Jobject jobject = new Jobject(newhook); 
+            var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+               envPtr, IntPtr.Zero, _handle.ToInt64(), 1024, begin, end, jobject.ToIntPtr()); 
         }
 
-        static IntPtr hookPtr;
-        public void HookAddNewBlockHook(IBackend.NativeBlockHook callback, object userData, long begin, long end)
+        public void HookAddNewBlockHook(IBlockHook callback, object userData, long begin, long end)
         {
-            NativeBlockHook nativeHook = (uc, address, size, userData) =>
-            {
-                callback(uc, address, size, userData);
-            };
+            NewHook newhook = new NewHook(callback, userData, this);
+            Jobject jobject = new Jobject(newhook);   
 
-            hookPtr = _hookManager.RegisterHook(callback, userData, nativeHook); 
+            var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+               envPtr, IntPtr.Zero, _handle.ToInt64(), 8, begin, end, jobject.ToIntPtr());
+            
+        }  
 
-            Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
-               envPtr, IntPtr.Zero, _handle.ToInt64(), 8 , begin, end, hookPtr);
-        }
-        
-        public void HookAddNewWriteHook(IBackend.NativeWriteHook callback, object userData, long begin, long end)
+        public void HookAddNewWriteHook(IWriteHook callback, object userData, long begin, long end)
         {
-            NativeWriteHook nativeHook = (uc, address, size, value, _) =>
-            {
-                callback(uc, address, size, value, userData);
-            };
+            //NativeWriteHook nativeHook = (uc, address, size, value, _) =>
+            //{
+            //    callback(uc, address, size, value, userData);
+            //};
 
-            var hookPtr = _hookManager.RegisterHook(callback, userData, nativeHook);
+            //var hookPtr = _hookManager.RegisterHook(callback, userData, nativeHook);
 
-            Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
-               envPtr, IntPtr.Zero, _handle.ToInt64(), 2048 /* HOOK_WRITE */, begin, end, hookPtr);
-        }
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), 2048 /* HOOK_WRITE */, begin, end, hookPtr);
 
-        public void HookAddNewEventMemHook(IBackend.NativeEventMemHook callback, int type, object userData)
-        {
-            NativeEventMemHook nativeHook = (uc, address, size, value, userdata,unmapedtype) =>
-            {
-                return callback(uc, address, size, value, userdata, unmapedtype);
-            };
+            NewHook newhook = new NewHook(callback, userData, this);
+            Jobject jobject = new Jobject(newhook);
 
-            var hookPtr = _hookManager.RegisterHook(callback, userData, nativeHook);
+            var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+               envPtr, IntPtr.Zero, _handle.ToInt64(), 2048, begin, end, jobject.ToIntPtr());
 
-            Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JILcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
-                 envPtr, IntPtr.Zero, _handle.ToInt64(), 2 /* HOOK_MEM */, hookPtr);
         }
 
-        static IntPtr envPtr;
-        public void HookAddNewInterruptHook(IBackend.NativeInterruptHook callback, object userData)
+        public void HookAddNewEventMemHook(IEventMemHook callback, int type, object userData)
         {
-            NativeInterruptHook nativeHook = (uc, intno, _) =>
-            {
-                callback(uc, intno, userData);
-            };
+            //NativeEventMemHook nativeHook = (uc, address, size, value, userdata,unmapedtype) =>
+            //{
+            //    return callback(uc, address, size, value, userdata, unmapedtype);
+            //};
 
-            var hookPtr = _hookManager.RegisterHook(callback, userData, nativeHook);
-            //
-            Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JILcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
-                envPtr, IntPtr.Zero, _handle.ToInt64(), Common. UC_HOOK_INTR /* HOOK_INTR */, hookPtr);
-             
-            // 使用后释放内存
-            //Marshal.FreeHGlobal(envPtr);
+            //var hookPtr = _hookManager.RegisterHook(callback, userData, nativeHook);
+
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JILcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+            //     envPtr, IntPtr.Zero, _handle.ToInt64(), 2 /* HOOK_MEM */, hookPtr);
+
+            NewHook newhook = new NewHook(callback, userData, this);
+            Jobject jobject = new Jobject(newhook);
+
+            var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JILcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+               envPtr, IntPtr.Zero, _handle.ToInt64(), 2,jobject.ToIntPtr());
+
+        }
+
+        public void HookAddNewInterruptHook( IInterruptHook callback, object userData)
+        {
+            //NativeInterruptHook nativeHook = (uc, intno, _) =>
+            //{
+            //    callback(uc, intno, userData);
+            //};
+
+            //var hookPtr = _hookManager.RegisterHook(callback, userData, nativeHook);
+            ////
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JILcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+            //    envPtr, IntPtr.Zero, _handle.ToInt64(), Common. UC_HOOK_INTR /* HOOK_INTR */, hookPtr);
+
+            //// 使用后释放内存
+            ////Marshal.FreeHGlobal(envPtr);
+            ///
+            NewHook newhook = new NewHook(callback, userData, this);
+            Jobject jobject = new Jobject(newhook);
+
+            var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JILcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+               envPtr, IntPtr.Zero, _handle.ToInt64(),Common.UC_HOOK_INTR, jobject.ToIntPtr());
+
+
         }
 
         public void MemMap(long address, long size, int perms)
@@ -283,6 +319,13 @@ namespace MtkSimalatorSharp.backend
         } 
 
         private const string DllName = "unicorn"; // 假设库名称为unicorn.dll或libunicorn.so
+
+        
+
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int JNI_OnLoad(IntPtr jvm,IntPtr reserved); 
+
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr Java_com_github_unidbg_arm_backend_unicorn_Unicorn_nativeInitialize(IntPtr env, IntPtr clazz, int arg1, int arg2);

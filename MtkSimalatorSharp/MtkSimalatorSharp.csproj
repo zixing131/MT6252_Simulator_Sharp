@@ -16,10 +16,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\UnicornEngine\UnicornEngine.fsproj" />
-	</ItemGroup>
-
-	<ItemGroup>
 	  <Reference Include="UnicornEngine">
 	    <HintPath>UnicornEngine.dll</HintPath>
 	  </Reference>
