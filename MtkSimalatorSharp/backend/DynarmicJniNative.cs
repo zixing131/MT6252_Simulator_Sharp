@@ -1,13 +1,382 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using static MtkSimalatorSharp.backend.IBackend;
 
 namespace MtkSimalatorSharp.backend
 {
-    public class DynarmicJniNative
+    public class DynarmicJniNative : IBackend
     {
+        private IntPtr _handle;
+        private readonly Dictionary<long, BreakPoint> _breakpoints = new Dictionary<long, BreakPoint>();
 
-    }
+        static IntPtr envPtr;
+
+        static IntPtr jvmPtr;
+
+        public void nativeInitialize(int arch, int mode)
+        {
+            envPtr = JniSim.CreateMiniJNIEnv();
+
+            jvmPtr = JniSim.CreateMiniJvm();
+
+            int jniload = JNI_OnLoad(jvmPtr, IntPtr.Zero);
+
+            _handle = Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_nativeInitialize(envPtr, IntPtr.Zero, false);
+            if (_handle == IntPtr.Zero)
+            {
+                throw new InvalidOperationException("Failed to initialize Unicorn backend");
+            }
+
+            //this.SwitchUserMode();
+            //this.EnableVFP();
+        }
+
+        public BreakPoint AddBreakPoint(long address, NativeBreakPointCallback callback, bool thumb)
+        {
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_addBreakPoint(envPtr, IntPtr.Zero, _handle.ToInt64(), address);
+            //var bp = new BreakPoint(address, callback);
+            //_breakpoints[address] = bp;
+            //return bp;
+            return null;
+        }
+
+        public long ContextAlloc()
+        {
+            return Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_context_1alloc(envPtr, IntPtr.Zero, _handle.ToInt64());
+        }
+
+        public void ContextFree(long context)
+        {
+            Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_free(envPtr, IntPtr.Zero, context);
+        }
+
+        public void ContextRestore(long context)
+        {
+            Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_context_1restore(envPtr, IntPtr.Zero, _handle.ToInt64(), context);
+        }
+
+        public void ContextSave(long context)
+        {
+            Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_context_1save(envPtr, IntPtr.Zero, _handle.ToInt64(), context);
+        }
+
+        public void DebuggerAddDebugHook(IDebugHook callback, object userData, long begin, long end)
+        {
+            //// 需要实现对应的回调处理
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerDebugger(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), begin, end, IntPtr.Zero);
+        }
+
+        public void Destroy()
+        {
+           Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_nativeDestroy(envPtr, IntPtr.Zero, _handle.ToInt64());
+            _handle = IntPtr.Zero;
+        }
+
+        public void EmuStart(long begin, long until, long timeout, long count)
+        {
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_emu_1start(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), begin, until, timeout, count);
+            try
+            {
+                Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_emu_1start(
+                    envPtr, IntPtr.Zero, _handle.ToInt64(), begin);
+            }
+            catch (SEHException ex)
+            {
+                Console.WriteLine($"Unmanaged exception: {ex}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unmanaged exception: {ex}");
+                throw;
+            }
+        }
+
+        public void EmuStop()
+        {
+            Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_emu_1stop(envPtr, IntPtr.Zero, _handle.ToInt64());
+        }
+
+        public void EnableVFP()
+        {
+            // 具体实现取决于Unicorn的API 
+            long value = RegRead(Arm.UC_ARM_REG_C1_C0_2);
+            value |= (0xf << 20);
+            RegWrite(Arm.UC_ARM_REG_C1_C0_2, value);
+            RegWrite(Arm.UC_ARM_REG_FPEXC, 0x40000000);
+        }
+
+        public int GetPageSize()
+        {
+            // 通常为4096，但可以查询系统或Unicorn获取实际值
+            return 4096;
+        }
+
+        private readonly HookManager _hookManager = new();
+        public void HookAddNewCodeHook(ICodeHook callback, object userData, long begin, long end)
+        { 
+            NewHook newhook = new NewHook(callback, userData, this);
+            Jobject jobject = new Jobject(newhook);
+            //var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), 4, begin, end, jobject.ToIntPtr());
+
+        }
+
+        public void HookAddNewReadHook(IReadHook callback, object userData, long begin, long end)
+        { 
+            NewHook newhook = new NewHook(callback, userData, this);
+            Jobject jobject = new Jobject(newhook);
+            //var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), 1024, begin, end, jobject.ToIntPtr());
+        }
+
+        public void HookAddNewBlockHook(IBlockHook callback, object userData, long begin, long end)
+        {
+            NewHook newhook = new NewHook(callback, userData, this);
+            Jobject jobject = new Jobject(newhook);
+
+            //var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), 8, begin, end, jobject.ToIntPtr());
+
+        }
+
+        public void HookAddNewWriteHook(IWriteHook callback, object userData, long begin, long end)
+        { 
+            NewHook newhook = new NewHook(callback, userData, this);
+            Jobject jobject = new Jobject(newhook);
+
+            //var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), 2048, begin, end, jobject.ToIntPtr());
+
+        }
+
+        public void HookAddNewEventMemHook(IEventMemHook callback, int type, object userData)
+        { 
+            NewHook newhook = new NewHook(callback, userData, this);
+            Jobject jobject = new Jobject(newhook);
+
+            //var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JILcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), 2, jobject.ToIntPtr());
+
+        }
+
+        public void HookAddNewInterruptHook(IInterruptHook callback, object userData)
+        { 
+            NewHook newhook = new NewHook(callback, userData, this);
+            Jobject jobject = new Jobject(newhook);
+
+            //var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JILcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), Common.UC_HOOK_INTR, jobject.ToIntPtr());
+
+
+        }
+
+        public void MemMap(long address, long size, int perms)
+        {
+            Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_mem_1map(
+                envPtr, IntPtr.Zero, _handle.ToInt64(), address, size, perms);
+        }
+
+        public void MemProtect(long address, long size, int perms)
+        {
+            Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_mem_1protect(
+                envPtr, IntPtr.Zero, _handle.ToInt64(), address, size, perms);
+        }
+
+        public byte[] MemRead(long address, long size)
+        {
+            IntPtr ptr = Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_mem_1read(
+                envPtr, IntPtr.Zero, _handle.ToInt64(), address, (int)size);
+            // 读取 data（后续字节）
+            Jbytes jbytes = Jbytes.FromIntPtr(ptr);
+            return jbytes.data;
+        }
+
+        public void MemUnmap(long address, long size)
+        {
+            Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_mem_1unmap(
+              envPtr, IntPtr.Zero, _handle.ToInt64(), address, size);
+        }
+
+        public void MemWrite(long address, byte[] bytes)
+        {
+            Jbytes jbytes = new Jbytes(bytes);
+            Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_mem_1write(
+               envPtr, IntPtr.Zero, _handle.ToInt64(), address, jbytes.ToIntPtr());
+        }
+
+        public void OnInitialize()
+        {
+            // 初始化逻辑已移至构造函数和nativeInitialize方法
+        }
+
+        public void RegisterEmuCountHook(long emuCount)
+        {
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_register_1emu_1count_1hook(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), emuCount, IntPtr.Zero);
+        }
+
+        public long RegRead(int regId)
+        {
+            return Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1read(
+                envPtr, IntPtr.Zero, _handle.ToInt64(), regId);
+        }
+
+        public byte[] RegReadVector(int regId)
+        {
+            //IntPtr ptr = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_reg_1read__JII(
+            //    envPtr, IntPtr.Zero, _handle.ToInt64(), regId, 0 /* size? */);
+            //// 读取 data（后续字节）
+            //byte[] data = new byte[size];
+            //Marshal.Copy(ptr, data, 0, data.Length); 
+            //return data; 
+            throw new NotImplementedException("RegReadVector not implemented");
+        }
+
+        public void RegWrite(int regId, long value)
+        {
+            Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1write(
+              envPtr, IntPtr.Zero, _handle.ToInt64(), regId, value);
+        }
+
+        public void RegWriteVector(int regId, byte[] vector)
+        {
+            //Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1write_1cpsr(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), regId, new Jbytes(vector).ToIntPtr());
+        }
+
+        public bool RemoveBreakPoint(long address)
+        {
+            //if (_breakpoints.TryGetValue(address, out var bp))
+            //{
+            //    Java_com_github_unidbg_arm_backend_unicorn_Unicorn_removeBreakPoint(
+            //        envPtr, IntPtr.Zero, _handle.ToInt64(), address);
+            //    _breakpoints.Remove(address);
+            //    return true;
+            //}
+            return false;
+        }
+
+        public void RemoveJitCodeCache(long begin, long end)
+        {
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_removeCache(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), begin, end);
+        }
+
+        public void SetFastDebug(bool fastDebug)
+        {
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_setFastDebug(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), fastDebug);
+        }
+
+        public void SetSingleStep(int singleStep)
+        {
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_setSingleStep(
+            // envPtr, IntPtr.Zero, _handle.ToInt64(), singleStep);
+        }
+
+        public void SwitchUserMode()
+        {
+            // 具体实现取决于Unicorn的API
+            Cpsr.GetArm(this).SwitchUserMode();
+        }
+
+
+        private const string DllName = "dynarmic";
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_setDynarmicCallback(IntPtr env, IntPtr clazz, long arg0, IntPtr callback);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_nativeInitialize(IntPtr env, IntPtr clazz, [MarshalAs(UnmanagedType.U1)] bool arg0);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_nativeDestroy(IntPtr env, IntPtr clazz, long arg0);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_mem_1unmap(IntPtr env, IntPtr clazz, long arg0, long arg1, long arg2);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_mem_1map(IntPtr env, IntPtr clazz, long arg0, long arg1, long arg2, int arg3);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_mem_1protect(IntPtr env, IntPtr clazz, long arg0, long arg1, long arg2, int arg3);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_mem_1write(IntPtr env, IntPtr clazz, long arg0, long arg1, IntPtr arg2);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_mem_1read(IntPtr env, IntPtr clazz, long arg0, long arg1, int arg2);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern long Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1read_1pc64(IntPtr env, IntPtr clazz, long arg0);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1set_1sp64(IntPtr env, IntPtr clazz, long arg0, long arg1);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern long Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1read_1sp64(IntPtr env, IntPtr clazz, long arg0);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern long Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1read_1nzcv(IntPtr env, IntPtr clazz, long arg0);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1set_1nzcv(IntPtr env, IntPtr clazz, long arg0, long arg1);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1set_1tpidr_1el0(IntPtr env, IntPtr clazz, long arg0, long arg1);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1set_1tpidrro_1el0(IntPtr env, IntPtr clazz, long arg0, long arg1);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1set_1vector(IntPtr env, IntPtr clazz, long arg0, int arg1, IntPtr arg2);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1read_1vector(IntPtr env, IntPtr clazz, long arg0, int arg1);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1write(IntPtr env, IntPtr clazz, long arg0, int arg1, long arg2);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern long Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1read(IntPtr env, IntPtr clazz, long arg0, int arg1);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1read_1cpsr(IntPtr env, IntPtr clazz, long arg0);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1write_1cpsr(IntPtr env, IntPtr clazz, long arg0, int arg1);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_reg_1write_1c13_1c0_13(IntPtr env, IntPtr clazz, long arg0, int arg1);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_emu_1start(IntPtr env, IntPtr clazz, long arg0, long arg1);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_emu_1stop(IntPtr env, IntPtr clazz, long arg0);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern long Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_context_1alloc(IntPtr env, IntPtr clazz, long arg0);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_context_1save(IntPtr env, IntPtr clazz, long arg0, long arg1);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_context_1restore(IntPtr env, IntPtr clazz, long arg0, long arg1);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Java_com_github_unidbg_arm_backend_dynarmic_Dynarmic_free(IntPtr env, IntPtr clazz, long arg0);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int JNI_OnLoad(IntPtr jvm, IntPtr reserved);
+    } 
 }

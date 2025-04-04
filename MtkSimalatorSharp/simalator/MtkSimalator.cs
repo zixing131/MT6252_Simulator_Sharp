@@ -430,7 +430,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         {
             initData();
 
-            MTK = new UnicornNative();
+            MTK = new DynarmicJniNative();
             MTK.nativeInitialize(Common.UC_ARCH_ARM, Common.UC_MODE_ARM); 
 
 
@@ -491,7 +491,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             hookCodeCallBackClass hookCodeCallBack = new hookCodeCallBackClass();
 
             MTK.HookAddNewCodeHook(hookCodeCallBack, 0, 0x08000000, 0x09000000);
-            
+
             ReadHookClass readhook = new ReadHookClass();
 
             MTK.HookAddNewReadHook(readhook, 0, 0x80000000, 0xA2000000);
@@ -515,11 +515,11 @@ namespace MT6252_Simulator_Sharp.Simalator
             //uc_mem_write 810a0800
             //uc_mem_write 878009b
             //uc_mem_write 810a0800
-            //0xC0000005 error 
+            //0xC0000005 error  
 
             //uc_mem_map_ptr(MTK, 0xC0000000, size_1mb, Common.UC_PROT_ALL, IntPtr.Zero);
-            EventMemHookClass eventMemHook = new EventMemHookClass();
-            MTK.HookAddNewEventMemHook(eventMemHook, Common.UC_HOOK_MEM_READ_UNMAPPED | Common.UC_HOOK_MEM_WRITE_UNMAPPED | Common.UC_HOOK_MEM_FETCH_UNMAPPED, 0);
+            //EventMemHookClass eventMemHook = new EventMemHookClass();
+            //MTK.HookAddNewEventMemHook(eventMemHook, Common.UC_HOOK_MEM_READ_UNMAPPED | Common.UC_HOOK_MEM_WRITE_UNMAPPED | Common.UC_HOOK_MEM_FETCH_UNMAPPED, 0);
             //MTK.AddInterruptHook(InterruptHook);
             //MTK.AddMemWriteHook();
 
@@ -575,7 +575,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         static int incount = 0;
         private static void hookRamCallBack(IBackend uc, int type, uint address, int size, uint value, object userData)
         {
-            //Console.WriteLine($"hookRamCallBack address = ({address:X})");
+            //Console.WriteLine($"hookRamCallBack address = ({address:X}) userData={userData}");
             int data = 0;
             if (userData.GetType() == typeof(UInt32))
             {
@@ -2562,7 +2562,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             uint changeTmp = 0x1234;
             uc_mem_write(MTK, 0xA10001D4, ref changeTmp, 4);
 
-            //byte[] tmpp = MTK.MemRead(0xA10001D4, 4);
+            byte[] tmpp = MTK.MemRead(0xA10001D4, 4);
             
             changeTmp = 0x20;
             uc_mem_write(MTK, 0xF018CFE5, ref changeTmp, 1);

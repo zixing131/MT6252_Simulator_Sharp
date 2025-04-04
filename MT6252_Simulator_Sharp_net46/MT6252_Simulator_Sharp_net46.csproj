@@ -156,6 +156,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="dynarmic.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Properties\unicorn.dll" />
     <Content Include="unicornjni.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
