@@ -14,3 +14,7 @@ Rom/fat32.img
 Rom/08000000.bin.til
 fat32.img
 MT6252_Simulator_Sharp_netcore/dynarmic.dll
+MT6252_Simulator_Sharp_netcore/unicorn.dll
+MT6252_Simulator_Sharp_netcore/unicorn.dll.til
+MT6252_Simulator_Sharp_netcore/unicorn1.dll
+MT6252_Simulator_Sharp_netcore/unicorn.dll

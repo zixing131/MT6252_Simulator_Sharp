@@ -15,5 +15,7 @@ namespace MtkSimalatorSharp.backend
         public const int UC_HOOK_MEM_READ_UNMAPPED = 16;
         public const int UC_HOOK_MEM_WRITE_UNMAPPED = 32;
         public const int UC_HOOK_MEM_FETCH_UNMAPPED = 64;
+
+        public const int UC_HOOK_INTR = 1;
     }
 }

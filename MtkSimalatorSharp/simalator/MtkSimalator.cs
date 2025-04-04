@@ -429,7 +429,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         {
             initData();
 
-            MTK = new UnicornNative(); 
+            MTK = new UnicornJniNative(); 
             MTK.nativeInitialize(Common.UC_ARCH_ARM, Common.UC_MODE_ARM);
 
 
@@ -1856,7 +1856,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             {
                 Console.WriteLine($"not support: {user_data}");
             }
-                //Console.WriteLine("user_data " + user_data);
+             // Console.WriteLine("user_data " + user_data);
                 switch (tmp2)
                 {
                     case 4: // 中断恢复 

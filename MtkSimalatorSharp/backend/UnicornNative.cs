@@ -20,7 +20,10 @@ namespace MtkSimalatorSharp.backend
             {
                 new UIntPtr(this.allocate(IntPtr.Size))
             };
-            uc_open((uint)arch, (uint)mode,_eng); 
+            uc_open((uint)arch, (uint)mode,_eng);
+
+            // this.SwitchUserMode();
+            // this.EnableVFP(); 
         }
 
         internal unsafe void* allocate(int size)
@@ -81,8 +84,11 @@ namespace MtkSimalatorSharp.backend
 
         public void EnableVFP()
         {
-            // 具体实现取决于Unicorn的API
-            throw new NotImplementedException("EnableVFP not implemented in JNI backend");
+            // 具体实现取决于Unicorn的API 
+            long value = RegRead(Arm.UC_ARM_REG_C1_C0_2);
+            value |= (0xf << 20);
+            RegWrite(Arm.UC_ARM_REG_C1_C0_2, value);
+            RegWrite(Arm.UC_ARM_REG_FPEXC, 0x40000000);
         }
 
         public int GetPageSize()
@@ -493,7 +499,7 @@ namespace MtkSimalatorSharp.backend
         public void SwitchUserMode()
         {
             // 具体实现取决于Unicorn的API
-            throw new NotImplementedException("SwitchUserMode not implemented in JNI backend");
+            Cpsr.GetArm(this).SwitchUserMode();
         }
 
         [DllImport("unicorn", CallingConvention = CallingConvention.Cdecl)]
