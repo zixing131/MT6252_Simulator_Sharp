@@ -430,7 +430,7 @@ namespace MT6252_Simulator_Sharp.Simalator
         {
             initData();
 
-            MTK = new DynarmicJniNative();
+            MTK = new UnicornNative();
             MTK.nativeInitialize(Common.UC_ARCH_ARM, Common.UC_MODE_ARM); 
 
 
