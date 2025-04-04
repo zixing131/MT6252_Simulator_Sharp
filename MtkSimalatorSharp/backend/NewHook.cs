@@ -53,8 +53,8 @@ namespace MtkSimalatorSharp.backend
     public class NewHook
     {
         IHook function;
-        object data;
-        IBackend uc;
+        public object data;
+        public IBackend uc;
         public NewHook(IHook f, object userdata, IBackend uc)
         {
             function = f;
@@ -65,7 +65,7 @@ namespace MtkSimalatorSharp.backend
         /**
          * for UC_HOOK_BLOCK
          */
-        void onBlock(long address, int size)
+        public void onBlock(long address, int size)
         {
             IBlockHook hook = (IBlockHook)function;
             hook.hook(uc, address, size, data);
@@ -74,7 +74,7 @@ namespace MtkSimalatorSharp.backend
         /**
          * for UC_HOOK_CODE
          */
-        void onCode(long address, int size)
+        public void onCode(long address, int size)
         {
             ICodeHook hook = (ICodeHook)function;
             hook.hook(uc, address, size, data);
@@ -83,7 +83,7 @@ namespace MtkSimalatorSharp.backend
         /**
          * on breakpoint hit
          */
-        void onBreak(long address, int size)
+        public void onBreak(long address, int size)
         {
             IDebugHook hook = (IDebugHook)function;
             hook.onBreak(uc, address, size, data);
@@ -92,7 +92,7 @@ namespace MtkSimalatorSharp.backend
         /**
          * for UC_HOOK_MEM_READ
          */
-        void onRead(long address, int size)
+        public void onRead(long address, int size)
         {
             IReadHook hook = (IReadHook)function;
             hook.hook(uc, address, size, data);
@@ -101,7 +101,7 @@ namespace MtkSimalatorSharp.backend
         /**
          * for UC_HOOK_MEM_WRITE
          */
-        void onWrite(long address, int size, long value)
+        public void onWrite(long address, int size, long value)
         {
             IWriteHook hook = (IWriteHook)function;
             hook.hook(uc, address, size, value, data);
@@ -110,7 +110,7 @@ namespace MtkSimalatorSharp.backend
         /**
          * for UC_HOOK_INTR
          */
-        void onInterrupt(int intno)
+        public void onInterrupt(int intno)
         {
             IInterruptHook hook = (IInterruptHook)function;
             hook.hook(uc, intno, data);
@@ -119,10 +119,10 @@ namespace MtkSimalatorSharp.backend
         /**
          * for UC_HOOK_MEM_*
          */
-        bool onMemEvent(int type, long address, int size, long value)
+        public bool onMemEvent(int type, long address, int size, long value)
         {
             IEventMemHook hook = (IEventMemHook)function;
             return hook.hook(uc, address, size, value, data);
-        }
+        } 
     }
 }

@@ -21,7 +21,6 @@ namespace MtkSimalatorSharp.backend
 
         public void nativeInitialize(int arch, int mode)
         { 
-
             envPtr = JniSim.CreateMiniJNIEnv();
 
             jvmPtr = JniSim.CreateMiniJvm();
@@ -35,7 +34,7 @@ namespace MtkSimalatorSharp.backend
             }
 
             //this.SwitchUserMode();
-            this.EnableVFP();
+            //this.EnableVFP();
         }
 
         public BreakPoint AddBreakPoint(long address, NativeBreakPointCallback callback, bool thumb)
@@ -81,8 +80,23 @@ namespace MtkSimalatorSharp.backend
 
         public void EmuStart(long begin, long until, long timeout, long count)
         {
-            Java_com_github_unidbg_arm_backend_unicorn_Unicorn_emu_1start(
-               envPtr, IntPtr.Zero, _handle.ToInt64(), begin, until, timeout, count);
+            //Java_com_github_unidbg_arm_backend_unicorn_Unicorn_emu_1start(
+            //   envPtr, IntPtr.Zero, _handle.ToInt64(), begin, until, timeout, count);
+            try
+            {
+                Java_com_github_unidbg_arm_backend_unicorn_Unicorn_emu_1start(
+                    envPtr, IntPtr.Zero, _handle.ToInt64(), begin, until, timeout, count);
+            }
+            catch (SEHException ex)
+            {
+                Console.WriteLine($"Unmanaged exception: {ex}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unmanaged exception: {ex}");
+                throw;
+            }
         }
 
         public void EmuStop()
@@ -120,7 +134,7 @@ namespace MtkSimalatorSharp.backend
             NewHook newhook = new NewHook(callback, userData, this);
             Jobject jobject = new Jobject(newhook);
             var errcode = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_registerHook__JIJJLcom_github_unidbg_arm_backend_unicorn_Unicorn_NewHook_2(
-               envPtr, IntPtr.Zero, _handle.ToInt64(), 1024, begin, end, jobject.ToIntPtr());
+               envPtr, IntPtr.Zero, _handle.ToInt64(), 4, begin, end, jobject.ToIntPtr());
 
         }
 
@@ -230,8 +244,11 @@ namespace MtkSimalatorSharp.backend
 
         public byte[] MemRead(long address, long size)
         {
-            return Java_com_github_unidbg_arm_backend_unicorn_Unicorn_mem_1read(
+            IntPtr ptr  = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_mem_1read(
                 envPtr, IntPtr.Zero, _handle.ToInt64(), address, size);
+            // 读取 data（后续字节）
+            Jbytes jbytes = Jbytes.FromIntPtr(ptr); 
+            return jbytes.data;
         }
 
         public void MemUnmap(long address, long size)
@@ -266,8 +283,13 @@ namespace MtkSimalatorSharp.backend
 
         public byte[] RegReadVector(int regId)
         {
-            return Java_com_github_unidbg_arm_backend_unicorn_Unicorn_reg_1read__JII(
-                envPtr, IntPtr.Zero, _handle.ToInt64(), regId, 0 /* size? */);
+            //IntPtr ptr = Java_com_github_unidbg_arm_backend_unicorn_Unicorn_reg_1read__JII(
+            //    envPtr, IntPtr.Zero, _handle.ToInt64(), regId, 0 /* size? */);
+            //// 读取 data（后续字节）
+            //byte[] data = new byte[size];
+            //Marshal.Copy(ptr, data, 0, data.Length); 
+            //return data; 
+            throw new NotImplementedException("RegReadVector not implemented");
         }
 
         public void RegWrite(int regId, long value)
@@ -292,7 +314,7 @@ namespace MtkSimalatorSharp.backend
                 return true;
             }
             return false;
-        }
+        } 
 
         public void RemoveJitCodeCache(long begin, long end)
         {
@@ -316,13 +338,10 @@ namespace MtkSimalatorSharp.backend
         {
             // 具体实现取决于Unicorn的API
              Cpsr.GetArm(this).SwitchUserMode(); 
-        } 
+        }
 
-        private const string DllName = "unicorn"; // 假设库名称为unicorn.dll或libunicorn.so
-
-        
-
-
+        private const string DllName = "unicornjni"; // 假设库名称为unicorn.dll或libunicorn.so
+         
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern int JNI_OnLoad(IntPtr jvm,IntPtr reserved); 
 
@@ -337,7 +356,7 @@ namespace MtkSimalatorSharp.backend
         public static extern void Java_com_github_unidbg_arm_backend_unicorn_Unicorn_hook_1del(IntPtr env, IntPtr clazz, long handle);
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        public static extern byte[] Java_com_github_unidbg_arm_backend_unicorn_Unicorn_reg_1read__JII(IntPtr env, IntPtr clazz, long handle, int regId, int arg3);
+        public static extern IntPtr Java_com_github_unidbg_arm_backend_unicorn_Unicorn_reg_1read__JII(IntPtr env, IntPtr clazz, long handle, int regId, int arg3);
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Java_com_github_unidbg_arm_backend_unicorn_Unicorn_reg_1write__JI_3B(IntPtr env, IntPtr clazz, long handle, int regId, IntPtr vector);
@@ -352,7 +371,7 @@ namespace MtkSimalatorSharp.backend
         public static extern long Java_com_github_unidbg_arm_backend_unicorn_Unicorn_register_1emu_1count_1hook(IntPtr env, IntPtr clazz, long handle, long emuCount, IntPtr hook);
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        public static extern byte[] Java_com_github_unidbg_arm_backend_unicorn_Unicorn_mem_1read(IntPtr env, IntPtr clazz, long handle, long address, long size);
+        public static extern IntPtr Java_com_github_unidbg_arm_backend_unicorn_Unicorn_mem_1read(IntPtr env, IntPtr clazz, long handle, long address, long size);
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Java_com_github_unidbg_arm_backend_unicorn_Unicorn_mem_1write(IntPtr env, IntPtr clazz, long handle, long address, IntPtr bytes);

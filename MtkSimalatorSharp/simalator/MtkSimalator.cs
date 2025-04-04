@@ -11,6 +11,14 @@ namespace MT6252_Simulator_Sharp.Simalator
     //https://github.com/unicorn-engine/unicorn/releases/download/1.0.2/unicorn-1.0.2-win32.zip
     public class MtkSimalator
     {
+
+        //初始MTK引擎
+        public static IBackend MTK = null;
+        public static bool isSuccess()
+        {
+            return MTK != null;
+        }
+
         // 定时中断配置，单位毫秒
         public const int Timer_Interrupt_Duration = 1000;
 
@@ -382,12 +390,6 @@ namespace MT6252_Simulator_Sharp.Simalator
             // return ArrToPtr(new byte[size]);
         }
 
-        //初始MTK引擎
-        public static IBackend MTK = null;
-        public static bool isSuccess()
-        {
-            return MTK != null;
-        }
         public static void uc_mem_map_ptr(IBackend mtk, uint address, int size, int perms, IntPtr ptr)
         {
             mtk.MemMap(address, size, perms);
@@ -429,7 +431,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             initData();
 
             MTK = new UnicornNative();
-            MTK.nativeInitialize(Common.UC_ARCH_ARM, Common.UC_MODE_ARM);
+            MTK.nativeInitialize(Common.UC_ARCH_ARM, Common.UC_MODE_ARM); 
 
 
             ROM_MEMPOOL = malloc(size_16mb);
@@ -476,6 +478,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             // hook kal_fatal_error_handler
             // err = uc_hook_add(uc, &trace, UC_HOOK_CODE, hookCodeCallBack, 0, 0, 0xFFFFFFFF);
             // 中断
+
             BlockCallBackClass hookBlockCallBack = new BlockCallBackClass();
             MTK.HookAddNewBlockHook(hookBlockCallBack, 4, CPU_ISR_CB_ADDRESS, CPU_ISR_CB_ADDRESS + 4); 
 
@@ -484,13 +487,11 @@ namespace MT6252_Simulator_Sharp.Simalator
             MTK.HookAddNewBlockHook(hookBlockCallBack, 7, 0x4000801E, 0x4000801F);
 
             MTK.HookAddNewBlockHook(hookBlockCallBack, 8, 0, 0xffffffff); 
-
-
+             
             hookCodeCallBackClass hookCodeCallBack = new hookCodeCallBackClass();
 
             MTK.HookAddNewCodeHook(hookCodeCallBack, 0, 0x08000000, 0x09000000);
-
-
+            
             ReadHookClass readhook = new ReadHookClass();
 
             MTK.HookAddNewReadHook(readhook, 0, 0x80000000, 0xA2000000);
@@ -546,7 +547,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             public bool hook(IBackend backend,long address, int size, long value, object userdata)
             {
                 Console.WriteLine($"异常 userdata ={userdata} address = {address:x} size={size} value={value:x}");
-                return true;
+                return false;
             }
         }
      
@@ -554,11 +555,10 @@ namespace MT6252_Simulator_Sharp.Simalator
 
         public class ReadHookClass: IReadHook
         {
-           public void hook(IBackend backend, long address, int size, object userData)
+            public void hook(IBackend backend, long address, int size, object userData)
             {
                 hookRamCallBack(backend, 16, (uint)address, size, 0, userData);
-            }
-
+            } 
         }
 
 
@@ -1881,7 +1881,7 @@ namespace MT6252_Simulator_Sharp.Simalator
                 {
                     Console.WriteLine($"not support: {user_data}");
                 }
-                // Console.WriteLine("user_data " + user_data);
+                //Console.WriteLine("user_data " + user_data);
                 switch (tmp2)
                 {
                     case 4: // 中断恢复 
@@ -2434,7 +2434,7 @@ namespace MT6252_Simulator_Sharp.Simalator
             changeTmp1 = (uint)now.DayOfWeek;
             uc_mem_write(MTK, 0x810b0024, ref changeTmp1, 4); // 星期
 
-            changeTmp1 = (uint)(now.Month - 1); // C#中Month是1-12，tm_mon是0-11
+            changeTmp1 = (uint)(now.Month); // C#中Month是1-12，tm_mon是0-11 
             uc_mem_write(MTK, 0x810b0028, ref changeTmp1, 4); // 月
 
             changeTmp1 = (uint)(now.Year - 2000); // 手机系统时间是从2000年开始，时间修正
@@ -2562,6 +2562,8 @@ namespace MT6252_Simulator_Sharp.Simalator
             uint changeTmp = 0x1234;
             uc_mem_write(MTK, 0xA10001D4, ref changeTmp, 4);
 
+            //byte[] tmpp = MTK.MemRead(0xA10001D4, 4);
+            
             changeTmp = 0x20;
             uc_mem_write(MTK, 0xF018CFE5, ref changeTmp, 1);
 
